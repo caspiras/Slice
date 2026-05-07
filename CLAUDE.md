@@ -1,0 +1,176 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+**slice-agent** is a Python CLI tool that provides an agentic interface to local Ollama models. The agent maintains natural chatbot behavior while enabling permission-gated command execution.
+
+## Key Architecture Principles
+
+### Permission-Gated Actions
+The core constraint: the agent should **never suppress the chatbot personality** of underlying models, but must **always ask permission before executing actions**. This dual nature means:
+
+- **Chat responses**: Flow naturally without interruption
+- **Action requests**: Detected, presented to user, and only executed with explicit approval
+- The distinction is critical—don't break chat flow with permission prompts unless an actual system action is requested
+
+### Signal Handling (Ctrl+C)
+The application uses a custom signal handler with double-press-to-exit behavior:
+- **First Ctrl+C**: Warning message, increments `exit_count`
+- **Second Ctrl+C**: Actual exit
+- This applies both to prompt input and during model output streaming
+- The signal handler is set up in `main.py` and must not be overridden by other components
+
+### UI/UX Requirements
+- **Prompt cursor**: Must be 🍕 (pizza emoji)
+- **Thinking indicator**: Must show "baking..." with a spinner (not frozen, not stuck)
+- **Streaming responses**: Tokens appear word-by-word as the model generates them
+- **Model selection**: User selects with arrow keys from list of local Ollama models
+- **Model switching**: User can type `/model` during chat to switch to a different model without restarting
+- **Graceful degradation**: Handle Ollama connection failures, missing models, etc.
+
+## Project Structure
+
+```
+src/slice_agent/
+├── __init__.py      # Package version
+├── main.py          # CLI entry point, signal handling, orchestration
+├── ui.py            # Terminal UI components (Rich, prompt-toolkit)
+├── agent.py         # Agent logic, Ollama integration, action detection
+└── executor.py      # Safe command execution with permission prompts
+```
+
+**Separation of concerns:**
+- `main.py`: CLI entry, signal handling, high-level flow
+- `ui.py`: All terminal rendering, user input, spinners, model selection
+- `agent.py`: Conversation state, Ollama API calls, tool/XML action handling
+- `executor.py`: Command execution, permission prompts, safety checks
+
+## Development Commands
+
+```bash
+# Install in editable mode with dev dependencies
+pip install -e ".[dev]"
+
+# Run the CLI locally
+slice
+
+# Or run directly without installation
+python -m slice_agent.main
+
+# Run tests
+pytest
+
+# Format code (Black)
+black src/ tests/
+
+# Lint (Ruff)
+ruff check src/ tests/
+
+# Type check (if mypy is added)
+mypy src/
+```
+
+## Key Dependencies
+
+- **rich**: Terminal styling, panels, spinners, console output
+- **ollama**: Python client for Ollama API (model listing, chat)
+- **prompt-toolkit**: Interactive prompt with key bindings
+
+## Action Detection Implementation
+
+The agent uses a **dual-mode approach** for detecting and executing actions:
+
+### Tool Calling Mode (Preferred)
+For models that support Ollama's function/tool calling:
+- Model is given an `execute_command` tool definition
+- When the model wants to run a command, it calls the tool with parameters
+- User is prompted for permission before execution
+- Results are fed back to the model for final response
+
+**Supported models**: llama3.x, mistral, mixtral, command-r, qwen2
+
+### XML Fallback Mode
+For models without tool support:
+- System prompt instructs model to wrap commands in XML: `<action command='ls'>reason</action>`
+- Agent parses XML tags and extracts commands
+- User is prompted for permission before execution
+- Results are injected back into the response text
+
+The agent automatically detects model capabilities and selects the appropriate mode.
+
+### Command Execution Safety
+All commands execute through `CommandExecutor` which provides multiple layers of protection:
+
+**1. Directory Sandboxing**
+- Commands are restricted to the directory where `slice` was started
+- Detects attempts to access paths outside the sandbox:
+  - Absolute paths (`/tmp/file`)
+  - Home directory (`~/Documents/file`)
+  - Parent directory traversal (`../../../file`)
+  - Directory changes (`cd /tmp`)
+- Shows red warning for sandbox escapes and requires explicit "yes" confirmation
+- Displays all suspicious paths found in the command
+
+**2. Permission Prompts**
+- Shows the command in a syntax-highlighted panel
+- Explains the reason (context from model)
+- Normal commands: asks y/N permission
+- Dangerous/escaped commands: requires explicit "yes" confirmation with red warning
+
+**3. Dangerous Pattern Detection**
+- Checks for obviously dangerous patterns (rm -rf /, mkfs, dd, etc.)
+- Shows red border and requires explicit "yes" for dangerous commands
+
+**4. Execution Safety**
+- 30-second timeout to prevent runaway commands
+- Captures stdout/stderr and displays formatted results
+- Shows clear success/failure status
+
+## Model Switching with /model Command
+
+The `/model` command allows users to switch models mid-session without restarting the application.
+
+**How it works:**
+1. User types `/model` at the prompt
+2. Model selector displays list of available models
+3. User selects a new model with arrow keys
+4. New `SliceAgent` instance is created with the selected model
+5. **Conversation history is preserved** and transferred to the new agent
+6. Sandbox directory remains the same
+
+**Implementation details:**
+- The `ChatUI` class holds a reference to `safe_directory` to pass to new agents
+- Conversation history is copied from the old agent to the new agent via `agent.conversation_history`
+- Lazy import of `SliceAgent` in `ui.py._switch_model()` to avoid circular dependencies
+- If user cancels model selection, current model is kept
+
+**Why preserve conversation history:**
+Users may want to switch models to:
+- Get a different perspective on the same problem
+- Use a faster/smaller model for simple tasks
+- Use a more capable model for complex reasoning
+
+Preserving history allows seamless continuation of the conversation with context intact.
+
+## Testing Local Ollama Models
+
+Ensure Ollama is running:
+```bash
+ollama list  # Should show downloaded models
+```
+
+If no models exist:
+```bash
+ollama pull llama2
+# or
+ollama pull mistral
+```
+
+## Common Pitfalls
+
+- **Don't break the exit handler**: The double-Ctrl+C pattern in `main.py` must work everywhere
+- **Don't suppress chat**: Permission gates are for **actions only**, not responses
+- **Conversation history**: Maintained in `agent.py`, don't duplicate in UI layer
+- **Spinner cleanup**: Use Rich's `transient=True` so spinners disappear after response
