@@ -120,11 +120,15 @@ class CommandExecutor:
             if success:
                 self.console.print("[green]✓ Command completed successfully[/green]")
                 if output:
-                    self.console.print(Panel(output, title="Output", border_style="green"))
+                    # Use Text() to prevent Rich from interpreting brackets as markup
+                    output_text = Text(output)
+                    self.console.print(Panel(output_text, title="Output", border_style="green"))
             else:
                 self.console.print(f"[red]✗ Command failed (exit code: {result.returncode})[/red]")
                 if error:
-                    self.console.print(Panel(error, title="Error", border_style="red"))
+                    # Use Text() to prevent Rich from interpreting brackets as markup
+                    error_text = Text(error)
+                    self.console.print(Panel(error_text, title="Error", border_style="red"))
 
             self.console.print()  # Blank line
 

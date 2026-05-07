@@ -3,7 +3,12 @@
 import re
 import ollama
 from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.live import Live
+from rich.spinner import Spinner
 from .executor import CommandExecutor
+from .document_reader import read_document
 
 console = Console()
 
@@ -30,6 +35,23 @@ TOOLS = [
                 "required": ["command", "reason"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_document",
+            "description": "Read and extract text content from documents. Use this when user asks to read, view, summarize, or get information FROM a file. Supports: PDF (.pdf), Word (.docx), Excel (.xlsx), CSV (.csv), and text files. DO NOT use shell commands like pandas, openpyxl, or grep - use this tool instead. For Excel/CSV files, this returns all rows with row numbers so you can find specific lines.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Filename or path to the document (e.g., 'data.xlsx', 'report.pdf', './folder/file.docx'). Use the exact filename from the current directory."
+                    }
+                },
+                "required": ["file_path"]
+            }
+        }
     }
 ]
 
@@ -53,10 +75,14 @@ class SliceAgent:
             self.conversation_history.append({
                 "role": "system",
                 "content": (
-                    "You are a helpful AI assistant. ONLY use <action command='...'>reason</action> when user asks you to DO something to files: "
-                    "create/delete/move files, list files, check git status. "
-                    "For questions like 'tell me about X', 'what is X', answer directly from your knowledge - DO NOT use actions. "
-                    "If you don't have a specific command to run, don't use an action tag."
+                    "You are a helpful AI assistant with two special XML tags:\n"
+                    "1. <action command='...'>reason</action> - for file operations (create/delete/list files, git status, etc.)\n"
+                    "2. <read file='...'/> - for reading documents (PDF, Word, Excel, CSV, text files)\n\n"
+                    "When user asks about content IN a document/spreadsheet, use <read file='filename'/>.\n"
+                    "For Excel files, you'll get all rows with row numbers so you can find specific lines.\n"
+                    "ONLY use these when user asks you to DO or READ something from files. "
+                    "For questions like 'tell me about X', 'what is X', answer directly from your knowledge - DO NOT use XML tags. "
+                    "If you don't have a specific file operation to do, don't use XML tags."
                 )
             })
 
@@ -233,6 +259,62 @@ class SliceAgent:
                         user_cancelled = True
                         break
 
+                elif function_name == "read_document":
+                    file_path = arguments.get("file_path", "") if isinstance(arguments, dict) else getattr(arguments, "file_path", "")
+
+                    # Validate file_path is not empty
+                    if not file_path or not file_path.strip():
+                        invalid_call_msg = "Invalid tool call - no file path provided."
+                        self.conversation_history.append({
+                            "role": "tool",
+                            "content": invalid_call_msg
+                        })
+                        continue
+
+                    try:
+                        # Read the document with spinner
+                        console.print(f"\n[bold cyan]📄 Reading Document[/bold cyan]")
+                        console.print(f"[dim]File: {file_path}[/dim]")
+
+                        with Live(
+                            Spinner("dots", text="[yellow]reading...[/yellow]"),
+                            console=console,
+                            auto_refresh=True,
+                            refresh_per_second=10,
+                            transient=True
+                        ):
+                            result = read_document(file_path)
+
+                        if result["success"]:
+                            console.print(f"[green]✓ Successfully read {result['file_type']}[/green]")
+                            # Display a preview of the content
+                            content_preview = result['content'][:500]
+                            if len(result['content']) > 500:
+                                content_preview += f"\n... ({len(result['content']) - 500} more characters)"
+                            preview_text = Text(content_preview)
+                            console.print(Panel(preview_text, title="Content Preview", border_style="cyan"))
+                            console.print()
+
+                            # Add full content to conversation history
+                            self.conversation_history.append({
+                                "role": "tool",
+                                "content": f"Successfully read {result['file_type']}: {file_path}\n\nContent:\n{result['content']}"
+                            })
+                        else:
+                            console.print(f"[red]✗ {result['error']}[/red]\n")
+                            self.conversation_history.append({
+                                "role": "tool",
+                                "content": f"Error: {result['error']}"
+                            })
+
+                    except Exception as e:
+                        error_msg = f"Failed to read document: {str(e)}"
+                        console.print(f"[red]✗ {error_msg}[/red]\n")
+                        self.conversation_history.append({
+                            "role": "tool",
+                            "content": error_msg
+                        })
+
             # If user cancelled, stop the loop and return
             if user_cancelled:
                 cancellation_msg = "I understand. Let me know if you need anything else!"
@@ -243,11 +325,19 @@ class SliceAgent:
                 return cancellation_msg
 
             # Get response after tool execution (might be another tool call or final message)
-            response = ollama.chat(
-                model=self.model,
-                messages=self.conversation_history,
-                tools=TOOLS
-            )
+            # Show spinner while model is thinking
+            with Live(
+                Spinner("dots", text="[yellow]baking...[/yellow]"),
+                console=console,
+                auto_refresh=True,
+                refresh_per_second=10,
+                transient=True
+            ):
+                response = ollama.chat(
+                    model=self.model,
+                    messages=self.conversation_history,
+                    tools=TOOLS
+                )
 
             message = response.message
 
@@ -265,9 +355,12 @@ class SliceAgent:
         """
         Handle action requests in XML format for models without tool support.
 
-        Looks for: <action command='ls -la'>reason</action>
+        Looks for:
+        - <action command='ls -la'>reason</action>
+        - <read file='document.pdf'/>
         """
-        pattern = r"<action command=['\"]([^'\"]+)['\"]>([^<]*)</action>"
+        # Handle command execution
+        action_pattern = r"<action command=['\"]([^'\"]+)['\"]>([^<]*)</action>"
 
         def replace_action(match):
             command = match.group(1)
@@ -283,5 +376,40 @@ class SliceAgent:
             else:
                 return f"[Command failed]\nError: {result['error']}"
 
-        # Replace all action tags with execution results
-        return re.sub(pattern, replace_action, text)
+        text = re.sub(action_pattern, replace_action, text)
+
+        # Handle document reading
+        read_pattern = r"<read file=['\"]([^'\"]+)['\"]\s*/>"
+
+        def replace_read(match):
+            file_path = match.group(1)
+
+            console.print(f"\n[bold cyan]📄 Reading Document[/bold cyan]")
+            console.print(f"[dim]File: {file_path}[/dim]")
+
+            with Live(
+                Spinner("dots", text="[yellow]reading...[/yellow]"),
+                console=console,
+                auto_refresh=True,
+                refresh_per_second=10,
+                transient=True
+            ):
+                result = read_document(file_path)
+
+            if result["success"]:
+                console.print(f"[green]✓ Successfully read {result['file_type']}[/green]")
+                # Display a preview
+                content_preview = result['content'][:500]
+                if len(result['content']) > 500:
+                    content_preview += f"\n... ({len(result['content']) - 500} more characters)"
+                preview_text = Text(content_preview)
+                console.print(Panel(preview_text, title="Content Preview", border_style="cyan"))
+                console.print()
+                return f"[Document read successfully]\n\nContent from {file_path}:\n{result['content']}"
+            else:
+                console.print(f"[red]✗ {result['error']}[/red]\n")
+                return f"[Failed to read document: {result['error']}]"
+
+        text = re.sub(read_pattern, replace_read, text)
+
+        return text
