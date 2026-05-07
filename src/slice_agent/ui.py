@@ -110,7 +110,7 @@ class ModelSelector:
             if idx == selected_idx:
                 lines.append(f"[bold cyan]→ {model} [tools {tool_indicator}][/bold cyan]")
             else:
-                lines.append(f"  {model} [tools {tool_indicator}]")
+                lines.append(f"[green]  {model} [tools {tool_indicator}][/green]")
 
         return "\n".join(lines)
 
