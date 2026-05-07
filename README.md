@@ -58,6 +58,16 @@ pip install -e .
 pip install -e ".[dev]"
 ```
 
+## Uninstall
+
+```bash
+# Uninstall the package
+pip uninstall slice-agent
+
+# Confirm when prompted
+# Note: This removes the 'slice' command from your system
+```
+
 ## Quick Start
 
 ```bash
