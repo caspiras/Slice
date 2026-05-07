@@ -142,6 +142,18 @@ Slice Agent is designed with **security first**. Multiple layers protect your sy
 
 **By default, all commands are restricted to the directory where you started `slice`.**
 
+**💡 Best Practice:** Always start the agent inside a specific project folder, not in your home directory or system root. This provides natural boundaries for the AI's actions:
+
+```bash
+# ✅ Good - Start in a specific project
+cd ~/projects/my-app
+slice
+
+# ❌ Avoid - Starting in home directory or root
+cd ~
+slice
+```
+
 Commands attempting to access files outside trigger a **red warning**:
 
 ```
