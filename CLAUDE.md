@@ -232,12 +232,14 @@ To prevent the model from getting stuck in repetitive loops:
 - Applies to both tool-calling mode and XML fallback mode
 - User sees red warning when duplicates are blocked: "⚠️  Blocked duplicate file read: X"
 
-**Anti-Hallucination File Validation:**
-- Before reading any file, check if it exists in current directory or safe_directory
-- If file doesn't exist, REJECT the read with message: "File does not exist. You are hallucinating this filename."
-- This prevents model from making up filenames like `sales_data.csv` when user never mentioned it
-- User sees: "⚠️  Blocked hallucinated file read: X (file does not exist)"
-- Model must work with files that actually exist or handle the rejection gracefully
+**Natural File Error Handling:**
+- File reads that reference non-existent files are NOT blocked or rejected
+- The `read_document` function naturally returns a "File not found" error
+- This error is passed to the model in conversation history
+- Model should handle file-not-found errors gracefully and continue with its task
+- No user prompts or warnings are shown for hallucinated files
+- This prevents the model from getting stuck trying to find files that don't exist
+- The model learns from the error and should focus on files that do exist
 
 ## Model Switching with /model Command
 

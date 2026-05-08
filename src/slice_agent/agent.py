@@ -1,7 +1,6 @@
 """Agent logic for slice-agent with permission-gated actions."""
 
 import re
-import os
 import ollama
 from rich.console import Console
 from rich.panel import Panel
@@ -42,13 +41,13 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "read_document",
-            "description": "Read documents (PDF, Word, Excel, CSV, text). CRITICAL RULES: (1) DO NOT read the same file twice in one turn. (2) ONLY read files the user explicitly mentioned - DO NOT make up filenames. (3) When user mentions a filename, read it directly without running 'ls' or 'find' first. (4) If you already read a file and have its content, DO NOT read it again. (5) For Excel files, you get ALL the data at once - don't re-read for different sheets.",
+            "description": "Read documents (PDF, Word, Excel, CSV, text). CRITICAL RULES: (1) DO NOT read the same file twice in one turn. (2) When user mentions a filename, read it directly without running 'ls' or 'find' first. (3) If you already read a file and have its content, DO NOT read it again. (4) For Excel files, you get ALL the data at once - don't re-read for different sheets. (5) If a file doesn't exist, you'll get an error - handle it gracefully and continue with the files that do exist.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "EXACT filename user mentioned. DO NOT invent filenames. DO NOT read files you already read. Use current directory unless specified otherwise."
+                        "description": "Filename to read. Use exact filename user mentioned. DO NOT read files you already read. Use current directory unless specified otherwise. If file doesn't exist, error will be returned."
                     }
                 },
                 "required": ["file_path"]
@@ -109,9 +108,9 @@ class SliceAgent:
                     "- DO NOT use the same XML tag twice in one response\n"
                     "- DO NOT read the same file multiple times\n"
                     "- DO NOT run the same command multiple times\n"
-                    "- ONLY read files the user explicitly mentioned - DO NOT invent filenames\n"
                     "- When user mentions a filename, read it directly - DO NOT use 'ls' or 'find' first\n"
-                    "- If you already have file content, DO NOT re-read it\n\n"
+                    "- If you already have file content, DO NOT re-read it\n"
+                    "- If a file read fails (file not found), handle the error gracefully and continue\n\n"
                     "When user asks about content IN a document, use <read file='exact-filename'/> ONCE.\n"
                     "For Excel files, you get ALL sheets and data at once - no need to re-read.\n"
                     "To write/modify documents, use <write file='filename' operations='JSON operations'/>\n"
@@ -333,22 +332,6 @@ class SliceAgent:
                         })
                         continue
 
-                    # Check if file exists before attempting to read
-                    if not os.path.exists(file_path):
-                        # Try checking in the safe directory
-                        safe_file_path = os.path.join(self.executor.safe_directory, file_path)
-                        if not os.path.exists(safe_file_path):
-                            hallucination_msg = f"REJECTED: File '{file_path}' does not exist. You are hallucinating this filename. ONLY read files that the user explicitly mentioned in their message. DO NOT invent filenames."
-                            console.print(f"[red]⚠️  Blocked hallucinated file read: {file_path} (file does not exist)[/red]")
-                            self.conversation_history.append({
-                                "role": "tool",
-                                "content": hallucination_msg
-                            })
-                            continue
-                        else:
-                            # Use the safe directory path
-                            file_path = safe_file_path
-
                     # Track this file
                     self.files_read_this_turn.add(file_path)
 
@@ -549,17 +532,6 @@ class SliceAgent:
             if file_path in self.files_read_this_turn:
                 console.print(f"[red]⚠️  Blocked duplicate file read: {file_path}[/red]")
                 return f"[REJECTED: You already read '{file_path}' in this turn. DO NOT re-read files.]"
-
-            # Check if file exists before attempting to read
-            check_path = file_path
-            if not os.path.exists(check_path):
-                # Try checking in the safe directory
-                safe_file_path = os.path.join(self.executor.safe_directory, file_path)
-                if not os.path.exists(safe_file_path):
-                    console.print(f"[red]⚠️  Blocked hallucinated file read: {file_path} (file does not exist)[/red]")
-                    return f"[REJECTED: File '{file_path}' does not exist. You are hallucinating this filename. ONLY read files that the user explicitly mentioned. DO NOT invent filenames.]"
-                else:
-                    file_path = safe_file_path
 
             # Track this file
             self.files_read_this_turn.add(file_path)
