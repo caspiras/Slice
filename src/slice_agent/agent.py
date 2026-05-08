@@ -19,13 +19,13 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "execute_command",
-            "description": "ONLY call this function when user asks you to DO a file operation like: create file, delete file, list files, check git status. DO NOT call this for questions like 'tell me about', 'what is', 'explain' - answer those directly. If you don't have a specific command to run, DO NOT call this function.",
+            "description": "ONLY call this function when user asks you to DO a file operation like: create file, delete file, list files, check git status. DO NOT call this for questions like 'tell me about', 'what is', 'explain' - answer those directly. If you don't have a specific command to run, DO NOT call this function. IMPORTANT: Always start with simple commands in the CURRENT directory first (e.g., 'ls' not 'ls -R', 'ls' before 'find'). Only search subdirectories if files aren't found in current directory.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "The actual shell command to run (e.g., 'touch file.txt', 'ls', 'git status')"
+                        "description": "The shell command to run. Start simple and local: use 'ls' to check current directory FIRST, not 'ls -R' or 'find'. Only use recursive/deep search commands if files aren't found locally. Examples: 'ls', 'git status', 'touch file.txt'"
                     },
                     "reason": {
                         "type": "string",
@@ -82,7 +82,10 @@ class SliceAgent:
                     "For Excel files, you'll get all rows with row numbers so you can find specific lines.\n"
                     "ONLY use these when user asks you to DO or READ something from files. "
                     "For questions like 'tell me about X', 'what is X', answer directly from your knowledge - DO NOT use XML tags. "
-                    "If you don't have a specific file operation to do, don't use XML tags."
+                    "If you don't have a specific file operation to do, don't use XML tags.\n\n"
+                    "IMPORTANT: Always start with simple commands in the CURRENT directory first. "
+                    "Use 'ls' to check current directory FIRST, not 'ls -R' or 'find'. "
+                    "Only search subdirectories if files aren't found locally."
                 )
             })
 
