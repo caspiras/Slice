@@ -34,11 +34,13 @@ The application uses a custom signal handler with double-press-to-exit behavior:
 
 ```
 src/slice_agent/
-├── __init__.py      # Package version
-├── main.py          # CLI entry point, signal handling, orchestration
-├── ui.py            # Terminal UI components (Rich, prompt-toolkit)
-├── agent.py         # Agent logic, Ollama integration, action detection
-└── executor.py      # Safe command execution with permission prompts
+├── __init__.py         # Package version
+├── main.py             # CLI entry point, signal handling, orchestration
+├── ui.py               # Terminal UI components (Rich, prompt-toolkit)
+├── agent.py            # Agent logic, Ollama integration, action detection
+├── executor.py         # Safe command execution with permission prompts
+├── document_reader.py  # Read PDF, Word, Excel, CSV, text files
+└── document_writer.py  # Write/modify Word, Excel, PowerPoint, CSV, text files
 ```
 
 **Separation of concerns:**
@@ -46,6 +48,8 @@ src/slice_agent/
 - `ui.py`: All terminal rendering, user input, spinners, model selection
 - `agent.py`: Conversation state, Ollama API calls, tool/XML action handling
 - `executor.py`: Command execution, permission prompts, safety checks
+- `document_reader.py`: Multi-format document reading utilities
+- `document_writer.py`: Multi-format document writing/modification utilities
 
 ## Development Commands
 
@@ -77,6 +81,10 @@ mypy src/
 - **rich**: Terminal styling, panels, spinners, console output
 - **ollama**: Python client for Ollama API (model listing, chat)
 - **prompt-toolkit**: Interactive prompt with key bindings
+- **pypdf**: PDF reading
+- **python-docx**: Word document reading and writing
+- **openpyxl**: Excel spreadsheet reading and writing
+- **python-pptx**: PowerPoint presentation creation and modification
 
 ## Action Detection Implementation
 
@@ -99,6 +107,70 @@ For models without tool support:
 - Results are injected back into the response text
 
 The agent automatically detects model capabilities and selects the appropriate mode.
+
+## Document Operations
+
+The agent supports comprehensive document reading and writing across multiple formats.
+
+### Document Reading
+Via `read_document` tool or `<read file='...'/>` XML tag:
+
+**Supported formats:**
+- **PDF (.pdf)** - Extract text content from all pages
+- **Word (.docx)** - Read paragraphs and tables
+- **Excel (.xlsx)** - Read all sheets with row/column data (row-numbered format)
+- **CSV (.csv)** - Read all rows with row numbers
+- **Text files** (.txt, .md, .py, .js, etc.) - Read content with encoding detection
+
+**Key behaviors:**
+- Excel files return ALL sheets and data at once - no need to re-read
+- Row-numbered format makes it easy to reference specific data
+- Built-in encoding detection for text files
+- Legacy .xls format not supported (must convert to .xlsx)
+
+### Document Writing
+Via `write_document` tool or `<write file='...' operations='...'/>` XML tag:
+
+**Supported formats:**
+- **Word (.docx)** - Append paragraphs, replace text, insert content
+- **Excel (.xlsx)** - Set cells, append rows, modify columns
+- **PowerPoint (.pptx)** - Add slides with title and content
+- **CSV (.csv)** - Append rows, modify cells
+- **Text files** - Replace content, append text, find/replace
+- **PDF (.pdf)** - **NOT SUPPORTED** (PDFs are read-only by design)
+
+**Operation examples:**
+
+```python
+# Word operations
+{"type": "append_paragraph", "text": "New paragraph text"}
+{"type": "replace_text", "find": "old text", "replace": "new text"}
+{"type": "insert_after", "search": "Section Header", "text": "New content"}
+
+# Excel operations
+{"type": "set_cell", "sheet": "Sheet1", "row": 5, "col": "M", "value": "Data"}
+{"type": "append_row", "sheet": "Sheet1", "values": ["A", "B", "C"]}
+{"type": "set_column", "sheet": "Sheet1", "col": "M", "start_row": 3, "values": ["X", "Y", "Z"]}
+
+# PowerPoint operations
+{"type": "add_slide", "title": "Slide Title", "content": "Slide content text"}
+
+# CSV operations
+{"type": "append_row", "values": ["col1", "col2", "col3"]}
+{"type": "set_cell", "row": 2, "col": 1, "value": "New Value"}
+
+# Text file operations
+{"type": "replace_content", "text": "Entirely new content"}
+{"type": "append_text", "text": "\nAppended text"}
+```
+
+**Implementation details:**
+- Operations are passed as JSON strings in the tool parameter
+- Can pass single operation object or array of operations
+- `document_writer.py` handles all write operations
+- Uses python-docx, openpyxl, python-pptx libraries
+- Files are created if they don't exist (except for some operations)
+- Returns success/error status and count of operations applied
 
 ### Command Execution Safety
 All commands execute through `CommandExecutor` which provides multiple layers of protection:
