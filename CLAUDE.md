@@ -135,6 +135,14 @@ All commands execute through `CommandExecutor` which provides multiple layers of
 - This prevents the model from being overly aggressive with recursive searches
 - Tool descriptions in both tool-calling and XML modes enforce this behavior
 
+**6. Direct File Access (No Verification)**
+- When user mentions a specific filename, model should try to read it directly
+- DO NOT run `ls` or `find` commands to verify file existence first
+- Assume files user mentions are in the current directory
+- The `read_document` tool handles file-not-found errors gracefully
+- Only use `ls` when user explicitly asks to list/see files, not for verification
+- This prevents unnecessary command execution and speeds up file operations
+
 ## Model Switching with /model Command
 
 The `/model` command allows users to switch models mid-session without restarting the application.
