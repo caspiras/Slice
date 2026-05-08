@@ -128,6 +128,13 @@ All commands execute through `CommandExecutor` which provides multiple layers of
 - Captures stdout/stderr and displays formatted results
 - Shows clear success/failure status
 
+**5. Local-First Command Strategy**
+- Model is guided to start with simple commands in the CURRENT directory first
+- Should use `ls` before `ls -R`, and `ls` before `find`
+- Only search subdirectories if files aren't found locally
+- This prevents the model from being overly aggressive with recursive searches
+- Tool descriptions in both tool-calling and XML modes enforce this behavior
+
 ## Model Switching with /model Command
 
 The `/model` command allows users to switch models mid-session without restarting the application.
