@@ -403,16 +403,34 @@ class SliceAgent:
 
                     try:
                         import json
+                        import ast
 
                         # Handle both JSON string and already-parsed objects
                         if isinstance(operations_param, str):
-                            # DEBUG: Show the raw JSON we're trying to parse
-                            console.print(f"\n[yellow]DEBUG - Raw operations JSON string:[/yellow]")
+                            # DEBUG: Show the raw operations string
+                            console.print(f"\n[yellow]DEBUG - Raw operations string:[/yellow]")
                             console.print(f"[dim]{operations_param[:500]}{'...' if len(operations_param) > 500 else ''}[/dim]\n")
-                            operations = json.loads(operations_param)
+
+                            # Try JSON first
+                            try:
+                                operations = json.loads(operations_param)
+                            except json.JSONDecodeError:
+                                # Model might have passed Python dict notation with single quotes
+                                # Try to parse as Python literal and convert
+                                console.print(f"[yellow]JSON parse failed, trying Python literal_eval...[/yellow]")
+                                try:
+                                    operations = ast.literal_eval(operations_param)
+                                    console.print(f"[green]✓ Parsed as Python literal[/green]\n")
+                                except (ValueError, SyntaxError) as e:
+                                    # Re-raise original JSON error with helpful message
+                                    raise json.JSONDecodeError(
+                                        f"Invalid format. Use JSON with double quotes: {{\"type\":\"...\"}}, not Python dict with single quotes",
+                                        operations_param,
+                                        0
+                                    )
                         elif isinstance(operations_param, (list, dict)):
                             # Model passed operations as already-parsed object
-                            console.print(f"\n[yellow]DEBUG - Operations passed as object (not JSON string)[/yellow]")
+                            console.print(f"\n[yellow]DEBUG - Operations passed as object (not string)[/yellow]")
                             console.print(f"[dim]Type: {type(operations_param)}[/dim]\n")
                             operations = operations_param
                         else:
@@ -452,11 +470,19 @@ class SliceAgent:
                     except json.JSONDecodeError as e:
                         error_msg = f"Invalid operations JSON: {str(e)}"
                         console.print(f"[red]✗ {error_msg}[/red]")
-                        console.print(f"[red]Raw JSON that failed:[/red]")
-                        console.print(f"[dim]{operations_json}[/dim]\n")
+                        console.print(f"[red]Raw data that failed:[/red]")
+                        console.print(f"[dim]{operations_param}[/dim]\n")
                         self.conversation_history.append({
                             "role": "tool",
                             "content": f"{error_msg}\n\nThe JSON you provided is malformed. Remember: all property names must be in double quotes. Example: {{\"type\":\"append_paragraph\",\"text\":\"Hello\"}}"
+                        })
+                    except ValueError as e:
+                        # Invalid type for operations parameter
+                        error_msg = f"Invalid operations parameter: {str(e)}"
+                        console.print(f"[red]✗ {error_msg}[/red]\n")
+                        self.conversation_history.append({
+                            "role": "tool",
+                            "content": error_msg
                         })
                     except Exception as e:
                         error_msg = f"Failed to write document: {str(e)}"
