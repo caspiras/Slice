@@ -1,6 +1,7 @@
 """Agent logic for slice-agent with permission-gated actions."""
 
 import re
+import os
 import ollama
 from rich.console import Console
 from rich.panel import Panel
@@ -306,6 +307,22 @@ class SliceAgent:
                         })
                         continue
 
+                    # Check if file exists before attempting to read
+                    if not os.path.exists(file_path):
+                        # Try checking in the safe directory
+                        safe_file_path = os.path.join(self.executor.safe_directory, file_path)
+                        if not os.path.exists(safe_file_path):
+                            hallucination_msg = f"REJECTED: File '{file_path}' does not exist. You are hallucinating this filename. ONLY read files that the user explicitly mentioned in their message. DO NOT invent filenames."
+                            console.print(f"[red]⚠️  Blocked hallucinated file read: {file_path} (file does not exist)[/red]")
+                            self.conversation_history.append({
+                                "role": "tool",
+                                "content": hallucination_msg
+                            })
+                            continue
+                        else:
+                            # Use the safe directory path
+                            file_path = safe_file_path
+
                     # Track this file
                     self.files_read_this_turn.add(file_path)
 
@@ -434,6 +451,17 @@ class SliceAgent:
             if file_path in self.files_read_this_turn:
                 console.print(f"[red]⚠️  Blocked duplicate file read: {file_path}[/red]")
                 return f"[REJECTED: You already read '{file_path}' in this turn. DO NOT re-read files.]"
+
+            # Check if file exists before attempting to read
+            check_path = file_path
+            if not os.path.exists(check_path):
+                # Try checking in the safe directory
+                safe_file_path = os.path.join(self.executor.safe_directory, file_path)
+                if not os.path.exists(safe_file_path):
+                    console.print(f"[red]⚠️  Blocked hallucinated file read: {file_path} (file does not exist)[/red]")
+                    return f"[REJECTED: File '{file_path}' does not exist. You are hallucinating this filename. ONLY read files that the user explicitly mentioned. DO NOT invent filenames.]"
+                else:
+                    file_path = safe_file_path
 
             # Track this file
             self.files_read_this_turn.add(file_path)
