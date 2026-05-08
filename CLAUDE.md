@@ -160,6 +160,13 @@ To prevent the model from getting stuck in repetitive loops:
 - Applies to both tool-calling mode and XML fallback mode
 - User sees red warning when duplicates are blocked: "⚠️  Blocked duplicate file read: X"
 
+**Anti-Hallucination File Validation:**
+- Before reading any file, check if it exists in current directory or safe_directory
+- If file doesn't exist, REJECT the read with message: "File does not exist. You are hallucinating this filename."
+- This prevents model from making up filenames like `sales_data.csv` when user never mentioned it
+- User sees: "⚠️  Blocked hallucinated file read: X (file does not exist)"
+- Model must work with files that actually exist or handle the rejection gracefully
+
 ## Model Switching with /model Command
 
 The `/model` command allows users to switch models mid-session without restarting the application.
