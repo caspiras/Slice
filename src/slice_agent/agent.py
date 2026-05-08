@@ -69,6 +69,9 @@ class SliceAgent:
         self.conversation_history = []
         self.executor = CommandExecutor(safe_directory=safe_directory)
         self.supports_tools = self._check_tool_support()
+        # Track files read in current turn to prevent duplicates and hallucinations
+        self.files_read_this_turn = set()
+        self.commands_run_this_turn = set()
 
         # If model doesn't support tools, add system message for XML fallback
         if not self.supports_tools:
@@ -116,6 +119,10 @@ class SliceAgent:
         Yields:
             Tokens of the response as strings
         """
+        # Reset per-turn tracking
+        self.files_read_this_turn.clear()
+        self.commands_run_this_turn.clear()
+
         # Add user message to history
         self.conversation_history.append({
             "role": "user",
@@ -244,6 +251,19 @@ class SliceAgent:
                         })
                         continue  # Skip to next tool call
 
+                    # Check if command was already run this turn
+                    if command in self.commands_run_this_turn:
+                        duplicate_msg = f"REJECTED: You already ran this command in this turn: '{command}'. DO NOT repeat commands. Use the result from the previous execution."
+                        console.print(f"[red]⚠️  Blocked duplicate command: {command}[/red]")
+                        self.conversation_history.append({
+                            "role": "tool",
+                            "content": duplicate_msg
+                        })
+                        continue
+
+                    # Track this command
+                    self.commands_run_this_turn.add(command)
+
                     try:
                         # Execute with permission
                         result = self.executor.execute_with_permission(command, reason)
@@ -275,6 +295,19 @@ class SliceAgent:
                             "content": invalid_call_msg
                         })
                         continue
+
+                    # Check if file was already read this turn
+                    if file_path in self.files_read_this_turn:
+                        duplicate_msg = f"REJECTED: You already read '{file_path}' in this turn. The content is already in the conversation history. DO NOT re-read files."
+                        console.print(f"[red]⚠️  Blocked duplicate file read: {file_path}[/red]")
+                        self.conversation_history.append({
+                            "role": "tool",
+                            "content": duplicate_msg
+                        })
+                        continue
+
+                    # Track this file
+                    self.files_read_this_turn.add(file_path)
 
                     try:
                         # Read the document with spinner
@@ -371,6 +404,14 @@ class SliceAgent:
             command = match.group(1)
             reason = match.group(2).strip()
 
+            # Check if command was already run this turn
+            if command in self.commands_run_this_turn:
+                console.print(f"[red]⚠️  Blocked duplicate command: {command}[/red]")
+                return f"[REJECTED: You already ran '{command}' in this turn. DO NOT repeat commands.]"
+
+            # Track this command
+            self.commands_run_this_turn.add(command)
+
             # Execute with permission
             result = self.executor.execute_with_permission(command, reason)
 
@@ -388,6 +429,14 @@ class SliceAgent:
 
         def replace_read(match):
             file_path = match.group(1)
+
+            # Check if file was already read this turn
+            if file_path in self.files_read_this_turn:
+                console.print(f"[red]⚠️  Blocked duplicate file read: {file_path}[/red]")
+                return f"[REJECTED: You already read '{file_path}' in this turn. DO NOT re-read files.]"
+
+            # Track this file
+            self.files_read_this_turn.add(file_path)
 
             console.print(f"\n[bold cyan]📄 Reading Document[/bold cyan]")
             console.print(f"[dim]File: {file_path}[/dim]")
