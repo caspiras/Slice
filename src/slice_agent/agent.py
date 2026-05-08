@@ -403,6 +403,11 @@ class SliceAgent:
                     try:
                         # Parse operations JSON
                         import json
+
+                        # DEBUG: Show the raw JSON we're trying to parse
+                        console.print(f"\n[yellow]DEBUG - Raw operations JSON:[/yellow]")
+                        console.print(f"[dim]{operations_json[:500]}{'...' if len(operations_json) > 500 else ''}[/dim]\n")
+
                         operations = json.loads(operations_json)
 
                         # Write the document with spinner
@@ -438,10 +443,12 @@ class SliceAgent:
 
                     except json.JSONDecodeError as e:
                         error_msg = f"Invalid operations JSON: {str(e)}"
-                        console.print(f"[red]✗ {error_msg}[/red]\n")
+                        console.print(f"[red]✗ {error_msg}[/red]")
+                        console.print(f"[red]Raw JSON that failed:[/red]")
+                        console.print(f"[dim]{operations_json}[/dim]\n")
                         self.conversation_history.append({
                             "role": "tool",
-                            "content": error_msg
+                            "content": f"{error_msg}\n\nThe JSON you provided is malformed. Remember: all property names must be in double quotes. Example: {{\"type\":\"append_paragraph\",\"text\":\"Hello\"}}"
                         })
                     except Exception as e:
                         error_msg = f"Failed to write document: {str(e)}"
@@ -575,6 +582,10 @@ class SliceAgent:
             operations_json = match.group(2)
 
             try:
+                # DEBUG: Show the raw JSON we're trying to parse
+                console.print(f"\n[yellow]DEBUG - Raw operations JSON:[/yellow]")
+                console.print(f"[dim]{operations_json[:500]}{'...' if len(operations_json) > 500 else ''}[/dim]\n")
+
                 # Parse operations JSON
                 operations = json.loads(operations_json)
 
@@ -600,8 +611,10 @@ class SliceAgent:
                     return f"[Failed to write document: {result['error']}]"
 
             except json.JSONDecodeError as e:
-                console.print(f"[red]✗ Invalid operations JSON: {e}[/red]\n")
-                return f"[Failed to write document: Invalid JSON in operations parameter]"
+                console.print(f"[red]✗ Invalid operations JSON: {e}[/red]")
+                console.print(f"[red]Raw JSON that failed:[/red]")
+                console.print(f"[dim]{operations_json}[/dim]\n")
+                return f"[Failed to write document: Invalid JSON - {str(e)}. All property names must be in double quotes.]"
             except Exception as e:
                 console.print(f"[red]✗ Error: {e}[/red]\n")
                 return f"[Failed to write document: {str(e)}]"
