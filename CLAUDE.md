@@ -152,6 +152,14 @@ To prevent the model from getting stuck in repetitive loops:
 - **One action per file**: Read each document once, use each command once per turn
 - Tool descriptions explicitly forbid repetition and hallucination
 
+**Runtime Enforcement:**
+- `SliceAgent` tracks `files_read_this_turn` and `commands_run_this_turn` sets
+- Both sets are cleared at the start of each user turn
+- Tool handlers check these sets and REJECT duplicate operations before execution
+- Blocked duplicates return clear error messages to the model ("REJECTED: You already read X")
+- Applies to both tool-calling mode and XML fallback mode
+- User sees red warning when duplicates are blocked: "⚠️  Blocked duplicate file read: X"
+
 ## Model Switching with /model Command
 
 The `/model` command allows users to switch models mid-session without restarting the application.
