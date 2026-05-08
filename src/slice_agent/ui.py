@@ -22,10 +22,11 @@ console = Console()
 class ModelSelector:
     """Interactive model selector with tool support indicators."""
 
-    # Known models with good tool/function calling support
+    # Known models with good tool/function calling support in Ollama
+    # Note: mixtral does NOT support tools in Ollama
     TOOL_CAPABLE_MODELS = [
         "llama3", "llama3.1", "llama3.2", "llama3.3",
-        "mistral", "mixtral",
+        "mistral",  # mistral base models support tools, mixtral does not
         "gemma", "gemma2", "gemma4",
         "command-r", "command-r-plus",
         "qwen", "qwen2",
@@ -174,13 +175,13 @@ class ChatUI:
                     continue
 
                 # Stream response with live updates
-                # Set up temporary signal handler for streaming interruption
+                # Signal handler will be installed after first token to allow Ctrl+C during "baking"
                 self.streaming_interrupted = False
+                signal_handler_installed = False
+                old_handler = None
 
                 def streaming_interrupt_handler(signum, frame):
                     self.streaming_interrupted = True
-
-                old_handler = signal.signal(signal.SIGINT, streaming_interrupt_handler)
 
                 try:
                     response_text = ""
@@ -194,6 +195,12 @@ class ChatUI:
                         transient=True
                     ) as live:
                         for token in self.agent.process_stream(user_input):
+                            # Install signal handler after first token arrives
+                            # This allows Ctrl+C to work during initial "baking" phase
+                            if not signal_handler_installed:
+                                old_handler = signal.signal(signal.SIGINT, streaming_interrupt_handler)
+                                signal_handler_installed = True
+
                             # Check if streaming was interrupted
                             if self.streaming_interrupted:
                                 break
@@ -216,8 +223,9 @@ class ChatUI:
                                 response_text += token
                                 live.update(Panel(response_text, border_style="cyan"))
 
-                    # Restore original signal handler
-                    signal.signal(signal.SIGINT, old_handler)
+                    # Restore original signal handler if it was installed
+                    if signal_handler_installed:
+                        signal.signal(signal.SIGINT, old_handler)
 
                     # If interrupted, raise KeyboardInterrupt
                     if self.streaming_interrupted:
@@ -233,8 +241,9 @@ class ChatUI:
                     self.console.print()
 
                 except Exception as e:
-                    # Restore signal handler on any exception
-                    signal.signal(signal.SIGINT, old_handler)
+                    # Restore signal handler on any exception (if it was installed)
+                    if signal_handler_installed:
+                        signal.signal(signal.SIGINT, old_handler)
                     if isinstance(e, KeyboardInterrupt):
                         raise
                     else:
