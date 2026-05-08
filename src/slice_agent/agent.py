@@ -10,6 +10,7 @@ from rich.live import Live
 from rich.spinner import Spinner
 from .executor import CommandExecutor
 from .document_reader import read_document
+from .document_writer import write_document
 
 console = Console()
 
@@ -53,6 +54,27 @@ TOOLS = [
                 "required": ["file_path"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_document",
+            "description": "Write/modify documents (Word, Excel, PowerPoint, CSV, text). Use this when user asks to edit, update, fill out, or create document content. Supports: Word (.docx) - append/replace text; Excel (.xlsx) - set cells, append rows; PowerPoint (.pptx) - add slides; CSV - modify data; Text files. PDF files CANNOT be edited. Operations are specified as JSON. Examples: {'type': 'append_paragraph', 'text': 'New text'} for Word; {'type': 'set_cell', 'sheet': 'Sheet1', 'row': 5, 'col': 'M', 'value': 'Data'} for Excel.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the document to write/modify. Use exact filename user mentioned."
+                    },
+                    "operations": {
+                        "type": "string",
+                        "description": "JSON string containing operation(s) to perform. Can be single object or array of objects. Each must have 'type' field. See function description for examples. Word: append_paragraph, replace_text. Excel: set_cell, append_row, set_column. PowerPoint: add_slide. CSV: append_row, set_cell. Text: replace_content, append_text."
+                    }
+                },
+                "required": ["file_path", "operations"]
+            }
+        }
     }
 ]
 
@@ -79,9 +101,10 @@ class SliceAgent:
             self.conversation_history.append({
                 "role": "system",
                 "content": (
-                    "You are a helpful AI assistant with two special XML tags:\n"
-                    "1. <action command='...'>reason</action> - for creating/deleting/modifying files, git status\n"
-                    "2. <read file='...'/> - for reading documents (PDF, Word, Excel, CSV, text files)\n\n"
+                    "You are a helpful AI assistant with three special XML tags:\n"
+                    "1. <action command='...'>reason</action> - for shell commands (git status, etc.)\n"
+                    "2. <read file='...'/> - for reading documents (PDF, Word, Excel, CSV, text files)\n"
+                    "3. <write file='...' operations='...' /> - for writing/modifying documents\n\n"
                     "CRITICAL RULES TO PREVENT LOOPS:\n"
                     "- DO NOT use the same XML tag twice in one response\n"
                     "- DO NOT read the same file multiple times\n"
@@ -91,7 +114,9 @@ class SliceAgent:
                     "- If you already have file content, DO NOT re-read it\n\n"
                     "When user asks about content IN a document, use <read file='exact-filename'/> ONCE.\n"
                     "For Excel files, you get ALL sheets and data at once - no need to re-read.\n"
-                    "Only use <action> for creating/modifying files or git commands, NOT for verifying file existence."
+                    "To write/modify documents, use <write file='filename' operations='JSON operations'/>\n"
+                    "Examples: <write file='doc.docx' operations='{\"type\":\"append_paragraph\",\"text\":\"New text\"}'/>\n"
+                    "          <write file='data.xlsx' operations='{\"type\":\"set_cell\",\"sheet\":\"Sheet1\",\"row\":5,\"col\":\"M\",\"value\":\"Data\"}'/>"
                 )
             })
 
@@ -370,6 +395,78 @@ class SliceAgent:
                             "content": error_msg
                         })
 
+                elif function_name == "write_document":
+                    file_path = arguments.get("file_path", "") if isinstance(arguments, dict) else getattr(arguments, "file_path", "")
+                    operations_json = arguments.get("operations", "") if isinstance(arguments, dict) else getattr(arguments, "operations", "")
+
+                    # Validate parameters
+                    if not file_path or not file_path.strip():
+                        invalid_call_msg = "Invalid tool call - no file path provided."
+                        self.conversation_history.append({
+                            "role": "tool",
+                            "content": invalid_call_msg
+                        })
+                        continue
+
+                    if not operations_json or not operations_json.strip():
+                        invalid_call_msg = "Invalid tool call - no operations provided."
+                        self.conversation_history.append({
+                            "role": "tool",
+                            "content": invalid_call_msg
+                        })
+                        continue
+
+                    try:
+                        # Parse operations JSON
+                        import json
+                        operations = json.loads(operations_json)
+
+                        # Write the document with spinner
+                        console.print(f"\n[bold green]✏️  Writing Document[/bold green]")
+                        console.print(f"[dim]File: {file_path}[/dim]")
+
+                        with Live(
+                            Spinner("dots", text="[yellow]writing...[/yellow]"),
+                            console=console,
+                            auto_refresh=True,
+                            refresh_per_second=10,
+                            transient=True
+                        ):
+                            result = write_document(file_path, operations)
+
+                        if result["success"]:
+                            console.print(f"[green]✓ Successfully wrote document[/green]")
+                            console.print(f"[dim]{result['message']}[/dim]")
+                            console.print(f"[dim]Operations applied: {result['operations_applied']}[/dim]")
+                            console.print()
+
+                            # Add result to conversation history
+                            self.conversation_history.append({
+                                "role": "tool",
+                                "content": f"Successfully modified {file_path}\n{result['message']}\nOperations applied: {result['operations_applied']}"
+                            })
+                        else:
+                            console.print(f"[red]✗ {result['error']}[/red]\n")
+                            self.conversation_history.append({
+                                "role": "tool",
+                                "content": f"Error: {result['error']}"
+                            })
+
+                    except json.JSONDecodeError as e:
+                        error_msg = f"Invalid operations JSON: {str(e)}"
+                        console.print(f"[red]✗ {error_msg}[/red]\n")
+                        self.conversation_history.append({
+                            "role": "tool",
+                            "content": error_msg
+                        })
+                    except Exception as e:
+                        error_msg = f"Failed to write document: {str(e)}"
+                        console.print(f"[red]✗ {error_msg}[/red]\n")
+                        self.conversation_history.append({
+                            "role": "tool",
+                            "content": error_msg
+                        })
+
             # If user cancelled, stop the loop and return
             if user_cancelled:
                 cancellation_msg = "I understand. Let me know if you need anything else!"
@@ -493,5 +590,47 @@ class SliceAgent:
                 return f"[Failed to read document: {result['error']}]"
 
         text = re.sub(read_pattern, replace_read, text)
+
+        # Handle document writing
+        write_pattern = r"<write file=['\"]([^'\"]+)['\"] operations=['\"]([^'\"]+)['\"]\s*/>"
+
+        def replace_write(match):
+            import json
+            file_path = match.group(1)
+            operations_json = match.group(2)
+
+            try:
+                # Parse operations JSON
+                operations = json.loads(operations_json)
+
+                console.print(f"\n[bold green]✏️  Writing Document[/bold green]")
+                console.print(f"[dim]File: {file_path}[/dim]")
+
+                with Live(
+                    Spinner("dots", text="[yellow]writing...[/yellow]"),
+                    console=console,
+                    auto_refresh=True,
+                    refresh_per_second=10,
+                    transient=True
+                ):
+                    result = write_document(file_path, operations)
+
+                if result["success"]:
+                    console.print(f"[green]✓ Successfully wrote document[/green]")
+                    console.print(f"[dim]{result['message']}[/dim]")
+                    console.print()
+                    return f"[Document written successfully]\n{result['message']}\nOperations applied: {result['operations_applied']}"
+                else:
+                    console.print(f"[red]✗ {result['error']}[/red]\n")
+                    return f"[Failed to write document: {result['error']}]"
+
+            except json.JSONDecodeError as e:
+                console.print(f"[red]✗ Invalid operations JSON: {e}[/red]\n")
+                return f"[Failed to write document: Invalid JSON in operations parameter]"
+            except Exception as e:
+                console.print(f"[red]✗ Error: {e}[/red]\n")
+                return f"[Failed to write document: {str(e)}]"
+
+        text = re.sub(write_pattern, replace_write, text)
 
         return text
