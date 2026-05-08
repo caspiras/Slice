@@ -381,7 +381,7 @@ class SliceAgent:
 
                 elif function_name == "write_document":
                     file_path = arguments.get("file_path", "") if isinstance(arguments, dict) else getattr(arguments, "file_path", "")
-                    operations_json = arguments.get("operations", "") if isinstance(arguments, dict) else getattr(arguments, "operations", "")
+                    operations_param = arguments.get("operations", "") if isinstance(arguments, dict) else getattr(arguments, "operations", "")
 
                     # Validate parameters
                     if not file_path or not file_path.strip():
@@ -392,7 +392,8 @@ class SliceAgent:
                         })
                         continue
 
-                    if not operations_json or not operations_json.strip():
+                    # Check if operations is provided (could be string or already parsed object)
+                    if not operations_param:
                         invalid_call_msg = "Invalid tool call - no operations provided."
                         self.conversation_history.append({
                             "role": "tool",
@@ -401,14 +402,21 @@ class SliceAgent:
                         continue
 
                     try:
-                        # Parse operations JSON
                         import json
 
-                        # DEBUG: Show the raw JSON we're trying to parse
-                        console.print(f"\n[yellow]DEBUG - Raw operations JSON:[/yellow]")
-                        console.print(f"[dim]{operations_json[:500]}{'...' if len(operations_json) > 500 else ''}[/dim]\n")
-
-                        operations = json.loads(operations_json)
+                        # Handle both JSON string and already-parsed objects
+                        if isinstance(operations_param, str):
+                            # DEBUG: Show the raw JSON we're trying to parse
+                            console.print(f"\n[yellow]DEBUG - Raw operations JSON string:[/yellow]")
+                            console.print(f"[dim]{operations_param[:500]}{'...' if len(operations_param) > 500 else ''}[/dim]\n")
+                            operations = json.loads(operations_param)
+                        elif isinstance(operations_param, (list, dict)):
+                            # Model passed operations as already-parsed object
+                            console.print(f"\n[yellow]DEBUG - Operations passed as object (not JSON string)[/yellow]")
+                            console.print(f"[dim]Type: {type(operations_param)}[/dim]\n")
+                            operations = operations_param
+                        else:
+                            raise ValueError(f"Operations must be JSON string or list/dict, got {type(operations_param)}")
 
                         # Write the document with spinner
                         console.print(f"\n[bold green]✏️  Writing Document[/bold green]")
