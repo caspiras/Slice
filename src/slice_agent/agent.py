@@ -40,13 +40,13 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "read_document",
-            "description": "Read and extract text content from documents. Use this when user asks to read, view, summarize, or get information FROM a file. Supports: PDF (.pdf), Word (.docx), Excel (.xlsx), CSV (.csv), and text files. DO NOT use shell commands like pandas, openpyxl, or grep - use this tool instead. For Excel/CSV files, this returns all rows with row numbers so you can find specific lines.",
+            "description": "Read and extract text content from documents. Use this when user asks to read, view, summarize, or get information FROM a file. Supports: PDF (.pdf), Word (.docx), Excel (.xlsx), CSV (.csv), and text files. DO NOT use shell commands like pandas, openpyxl, or grep - use this tool instead. For Excel/CSV files, this returns all rows with row numbers so you can find specific lines. IMPORTANT: When user mentions a specific filename, just read it directly - don't run 'ls' or 'find' to verify existence first. The tool handles file-not-found errors gracefully.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Filename or path to the document (e.g., 'data.xlsx', 'report.pdf', './folder/file.docx'). Use the exact filename from the current directory."
+                        "description": "Filename or path to the document. When user mentions a filename, use it exactly as stated. Assume files are in current directory unless user specifies otherwise. Examples: 'data.xlsx', 'report.pdf', 'document.docx'"
                     }
                 },
                 "required": ["file_path"]
@@ -83,9 +83,12 @@ class SliceAgent:
                     "ONLY use these when user asks you to DO or READ something from files. "
                     "For questions like 'tell me about X', 'what is X', answer directly from your knowledge - DO NOT use XML tags. "
                     "If you don't have a specific file operation to do, don't use XML tags.\n\n"
-                    "IMPORTANT: Always start with simple commands in the CURRENT directory first. "
-                    "Use 'ls' to check current directory FIRST, not 'ls -R' or 'find'. "
-                    "Only search subdirectories if files aren't found locally."
+                    "IMPORTANT FILE HANDLING RULES:\n"
+                    "- When user mentions a specific filename, just read it directly - don't use 'ls' or 'find' first\n"
+                    "- Assume files user mentions are in the current directory\n"
+                    "- The read tool handles file-not-found errors, so just try reading\n"
+                    "- Only use 'ls' if user explicitly asks to list/see files, not to verify existence\n"
+                    "- Start with simple commands: use 'ls' (not 'ls -R'), only search subdirectories if needed"
                 )
             })
 
