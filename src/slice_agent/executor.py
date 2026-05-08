@@ -104,12 +104,14 @@ class CommandExecutor:
         # Execute the command
         try:
             self.console.print("[dim]Executing...[/dim]")
+            self.console.print(f"[dim]Working directory: {self.safe_directory}[/dim]")
             result = subprocess.run(
                 command,
                 shell=True,
                 capture_output=True,
                 text=True,
-                timeout=30  # 30 second timeout
+                timeout=30,  # 30 second timeout
+                cwd=str(self.safe_directory)  # Execute in the sandboxed directory
             )
 
             success = result.returncode == 0

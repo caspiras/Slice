@@ -172,6 +172,67 @@ Via `write_document` tool or `<write file='...' operations='...'/>` XML tag:
 - Files are created if they don't exist (except for some operations)
 - Returns success/error status and count of operations applied
 
+### Python Script Generation for Complex Document Operations
+
+**IMPORTANT**: Local Ollama models often struggle with complex multi-step document workflows. To solve this, the agent provides two distinct tools with clear separation of concerns:
+
+**Two-Tool Approach:**
+
+1. **`write_document`** - For SIMPLE tasks only (1-5 operations, single file)
+   - Append one paragraph to Word doc
+   - Update 2-3 cells in Excel
+   - Single-file edits with few operations
+
+2. **`generate_automation_script`** - For COMPLEX tasks (the tool models should prefer for complex work)
+   - Multiple source/destination files
+   - Data parsing and matching (Excel → Word lookups)
+   - 10+ individual operations required
+   - Data extraction/transformation logic
+   - Cross-file data transfers or synchronization
+   - Conditional operations based on document content
+
+**How `generate_automation_script` works:**
+
+Models call this tool with:
+- `task_description`: Brief explanation of what the script will do
+- `script_code`: Complete Python code importing from `slice_agent.document_reader` and `slice_agent.document_writer`
+
+The tool automatically:
+1. Saves the script to `automation_script.py` in the **current working directory** (where slice was started)
+2. Executes it with user permission in the same directory
+3. Returns the results to the model
+
+**CRITICAL**: All scripts and file operations happen in the directory where slice agent is running. Never use absolute paths or home directory paths (`~/`, `/Users/`, etc.) - just use filenames.
+
+**Why this two-tool approach works:**
+
+✅ **Clear separation**: Models see two distinct tools instead of one tool with a paragraph of guidance buried in the description
+
+✅ **Forced choice**: Having separate tools makes models actively choose the right path
+
+✅ **Better prompting**: Tool descriptions use ✅ CORRECT vs ❌ WRONG examples to guide behavior
+
+✅ **Automatic execution**: The script tool handles save + execute, so models don't have to orchestrate multiple steps
+
+**Example script structure:**
+```python
+from slice_agent.document_reader import read_document
+from slice_agent.document_writer import write_document
+
+# Read source data
+excel_data = read_document("source.xlsx")
+# Parse and process data...
+
+# Write to destination
+result = write_document("destination.docx", [
+    {"type": "replace_text", "find": "X", "replace": "Y"},
+    # ... many more operations
+])
+```
+
+**For XML fallback mode (models without tool support):**
+The system message explicitly instructs models to generate Python scripts for complex tasks using the `<write>` tag to save the script, then `<action>` to execute it.
+
 ### Command Execution Safety
 All commands execute through `CommandExecutor` which provides multiple layers of protection:
 
