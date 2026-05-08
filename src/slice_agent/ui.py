@@ -5,12 +5,14 @@ import sys
 import signal
 import tty
 import termios
+from pathlib import Path
 import ollama
 from rich.console import Console
 from rich.panel import Panel
 from rich.spinner import Spinner
 from rich.live import Live
 from prompt_toolkit import prompt
+from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.keys import Keys
 
@@ -145,15 +147,20 @@ class ChatUI:
         self.model_selector = ModelSelector()
         self.streaming_interrupted = False
 
+        # Set up command history - saved in user's home directory
+        history_file = Path.home() / ".slice_history"
+        self.history = FileHistory(str(history_file))
+
     def run(self):
         """Run the interactive chat loop."""
         self.console.print("[dim]Type your message (Ctrl+C once for warning, twice to exit)[/dim]")
-        self.console.print("[dim]Type /model to switch models\n[/dim]")
+        self.console.print("[dim]Type /model to switch models[/dim]")
+        self.console.print("[dim]Use ↑/↓ arrows for command history\n[/dim]")
 
         while True:
             try:
-                # Show pizza emoji as cursor
-                user_input = prompt("🍕 ", key_bindings=self._get_key_bindings())
+                # Show pizza emoji as cursor with command history
+                user_input = prompt("🍕 ", history=self.history, key_bindings=self._get_key_bindings())
 
                 if not user_input.strip():
                     continue
