@@ -19,17 +19,17 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "execute_command",
-            "description": "ONLY call this function when user asks you to DO a file operation like: create file, delete file, list files, check git status. DO NOT call this for questions like 'tell me about', 'what is', 'explain' - answer those directly. If you don't have a specific command to run, DO NOT call this function. IMPORTANT: Always start with simple commands in the CURRENT directory first (e.g., 'ls' not 'ls -R', 'ls' before 'find'). Only search subdirectories if files aren't found in current directory.",
+            "description": "Execute shell commands. CRITICAL RULES: (1) DO NOT run the same command twice in one conversation turn. (2) When user mentions a filename, DO NOT run 'ls' or 'find' - just use read_document directly. (3) Only call this when user asks to CREATE, DELETE, or MODIFY files, or check git status. (4) For reading/viewing files, use read_document instead. (5) If you already have information from a previous tool call, DO NOT repeat it.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "The shell command to run. Start simple and local: use 'ls' to check current directory FIRST, not 'ls -R' or 'find'. Only use recursive/deep search commands if files aren't found locally. Examples: 'ls', 'git status', 'touch file.txt'"
+                        "description": "Shell command to run. DO NOT repeat commands you already ran. Examples: 'touch file.txt', 'git status', 'mkdir folder'"
                     },
                     "reason": {
                         "type": "string",
-                        "description": "Why you need to run this command"
+                        "description": "Why you need to run this command. Must be a NEW reason, not something you already did."
                     }
                 },
                 "required": ["command", "reason"]
@@ -40,13 +40,13 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "read_document",
-            "description": "Read and extract text content from documents. Use this when user asks to read, view, summarize, or get information FROM a file. Supports: PDF (.pdf), Word (.docx), Excel (.xlsx), CSV (.csv), and text files. DO NOT use shell commands like pandas, openpyxl, or grep - use this tool instead. For Excel/CSV files, this returns all rows with row numbers so you can find specific lines. IMPORTANT: When user mentions a specific filename, just read it directly - don't run 'ls' or 'find' to verify existence first. The tool handles file-not-found errors gracefully.",
+            "description": "Read documents (PDF, Word, Excel, CSV, text). CRITICAL RULES: (1) DO NOT read the same file twice in one turn. (2) ONLY read files the user explicitly mentioned - DO NOT make up filenames. (3) When user mentions a filename, read it directly without running 'ls' or 'find' first. (4) If you already read a file and have its content, DO NOT read it again. (5) For Excel files, you get ALL the data at once - don't re-read for different sheets.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Filename or path to the document. When user mentions a filename, use it exactly as stated. Assume files are in current directory unless user specifies otherwise. Examples: 'data.xlsx', 'report.pdf', 'document.docx'"
+                        "description": "EXACT filename user mentioned. DO NOT invent filenames. DO NOT read files you already read. Use current directory unless specified otherwise."
                     }
                 },
                 "required": ["file_path"]
@@ -76,19 +76,18 @@ class SliceAgent:
                 "role": "system",
                 "content": (
                     "You are a helpful AI assistant with two special XML tags:\n"
-                    "1. <action command='...'>reason</action> - for file operations (create/delete/list files, git status, etc.)\n"
+                    "1. <action command='...'>reason</action> - for creating/deleting/modifying files, git status\n"
                     "2. <read file='...'/> - for reading documents (PDF, Word, Excel, CSV, text files)\n\n"
-                    "When user asks about content IN a document/spreadsheet, use <read file='filename'/>.\n"
-                    "For Excel files, you'll get all rows with row numbers so you can find specific lines.\n"
-                    "ONLY use these when user asks you to DO or READ something from files. "
-                    "For questions like 'tell me about X', 'what is X', answer directly from your knowledge - DO NOT use XML tags. "
-                    "If you don't have a specific file operation to do, don't use XML tags.\n\n"
-                    "IMPORTANT FILE HANDLING RULES:\n"
-                    "- When user mentions a specific filename, just read it directly - don't use 'ls' or 'find' first\n"
-                    "- Assume files user mentions are in the current directory\n"
-                    "- The read tool handles file-not-found errors, so just try reading\n"
-                    "- Only use 'ls' if user explicitly asks to list/see files, not to verify existence\n"
-                    "- Start with simple commands: use 'ls' (not 'ls -R'), only search subdirectories if needed"
+                    "CRITICAL RULES TO PREVENT LOOPS:\n"
+                    "- DO NOT use the same XML tag twice in one response\n"
+                    "- DO NOT read the same file multiple times\n"
+                    "- DO NOT run the same command multiple times\n"
+                    "- ONLY read files the user explicitly mentioned - DO NOT invent filenames\n"
+                    "- When user mentions a filename, read it directly - DO NOT use 'ls' or 'find' first\n"
+                    "- If you already have file content, DO NOT re-read it\n\n"
+                    "When user asks about content IN a document, use <read file='exact-filename'/> ONCE.\n"
+                    "For Excel files, you get ALL sheets and data at once - no need to re-read.\n"
+                    "Only use <action> for creating/modifying files or git commands, NOT for verifying file existence."
                 )
             })
 

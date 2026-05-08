@@ -143,6 +143,15 @@ All commands execute through `CommandExecutor` which provides multiple layers of
 - Only use `ls` when user explicitly asks to list/see files, not for verification
 - This prevents unnecessary command execution and speeds up file operations
 
+**7. Anti-Loop Safeguards**
+To prevent the model from getting stuck in repetitive loops:
+- **No duplicate tool calls**: Model must NOT call the same tool with the same parameters twice in one turn
+- **No re-reading**: Once a file is read, its content is in conversation history - don't read it again
+- **No hallucinated files**: Model must ONLY read files explicitly mentioned by the user
+- **Excel files return all data**: Excel/CSV reads return complete content - no need to re-read for different sheets
+- **One action per file**: Read each document once, use each command once per turn
+- Tool descriptions explicitly forbid repetition and hallucination
+
 ## Model Switching with /model Command
 
 The `/model` command allows users to switch models mid-session without restarting the application.
