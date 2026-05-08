@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from typing import Dict, Any, List, Union
-import json
 
 
 def write_document(file_path: str, operations: Union[Dict, List[Dict]]) -> Dict[str, Any]:
@@ -181,12 +180,15 @@ def _write_excel(path: Path, operations: List[Dict], file_exists: bool) -> Dict[
 
     # Load existing or create new workbook
     if file_exists:
-        workbook = load_workbook(path)
+        # data_only=True evaluates formulas to their values
+        workbook = load_workbook(path, data_only=True)
     else:
         workbook = Workbook()
-        # Remove default sheet if creating new
-        if 'Sheet' in workbook.sheetnames:
-            del workbook['Sheet']
+        # Remove default sheet if it exists and we'll create custom sheets
+        # Default sheet name varies by version, so check all existing sheets
+        if workbook.sheetnames and len(workbook.sheetnames) == 1:
+            # Only one default sheet exists, will be replaced when we create_sheet
+            pass
 
     operations_applied = 0
     messages = []
@@ -317,9 +319,24 @@ def _write_csv(path: Path, operations: List[Dict], file_exists: bool) -> Dict[st
     # Read existing content if file exists
     rows = []
     if file_exists:
-        with open(path, 'r', newline='', encoding='utf-8') as f:
-            reader = csv.reader(f)
-            rows = list(reader)
+        # Try UTF-8 first, then latin-1 for encoding compatibility
+        last_error = None
+        for encoding in ['utf-8', 'latin-1']:
+            try:
+                with open(path, 'r', newline='', encoding=encoding) as f:
+                    reader = csv.reader(f)
+                    rows = list(reader)
+                break  # Success, exit encoding loop
+            except UnicodeDecodeError as e:
+                last_error = e
+                continue
+            except Exception:
+                # Other errors (permissions, etc.) should be raised
+                raise
+        else:
+            # If we exhausted all encodings, raise the last error
+            if last_error:
+                raise last_error
 
     operations_applied = 0
     messages = []
@@ -371,8 +388,18 @@ def _write_text(path: Path, operations: List[Dict], file_exists: bool) -> Dict[s
     # Read existing content if file exists
     content = ""
     if file_exists:
-        with open(path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        # Try UTF-8 first, then latin-1, then binary with error replacement
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            try:
+                with open(path, 'r', encoding='latin-1') as f:
+                    content = f.read()
+            except Exception:
+                # Last resort: binary read with error replacement
+                with open(path, 'rb') as f:
+                    content = f.read().decode('utf-8', errors='replace')
 
     operations_applied = 0
     messages = []

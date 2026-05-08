@@ -115,6 +115,7 @@ class SliceAgent:
                     "When user asks about content IN a document, use <read file='exact-filename'/> ONCE.\n"
                     "For Excel files, you get ALL sheets and data at once - no need to re-read.\n"
                     "To write/modify documents, use <write file='filename' operations='JSON operations'/>\n"
+                    "IMPORTANT: Use SINGLE quotes for operations attribute so JSON can use double quotes inside!\n"
                     "Examples: <write file='doc.docx' operations='{\"type\":\"append_paragraph\",\"text\":\"New text\"}'/>\n"
                     "          <write file='data.xlsx' operations='{\"type\":\"set_cell\",\"sheet\":\"Sheet1\",\"row\":5,\"col\":\"M\",\"value\":\"Data\"}'/>"
                 )
@@ -592,7 +593,9 @@ class SliceAgent:
         text = re.sub(read_pattern, replace_read, text)
 
         # Handle document writing
-        write_pattern = r"<write file=['\"]([^'\"]+)['\"] operations=['\"]([^'\"]+)['\"]\s*/>"
+        # Use single quotes for operations attribute to allow JSON double quotes inside
+        # Pattern: <write file='...' operations='{"type":"..."}' />
+        write_pattern = r"<write\s+file=['\"]([^'\"]+)['\"]\s+operations='([^']+)'\s*/>"
 
         def replace_write(match):
             import json
