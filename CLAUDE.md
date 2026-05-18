@@ -4,12 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**slice-agent** is a Python CLI tool that provides an agentic interface to local Ollama models. The agent maintains natural chatbot behavior while enabling permission-gated command execution.
+**Slice** is a sandboxed IDE-like wrapper for local Ollama models. Built with **Go + Python hybrid architecture**, it provides a terminal interface with permission-gated command execution and document operations.
 
 ## Key Architecture Principles
 
+### Go + Python Hybrid
+
+**Go handles** (fast, compiled):
+- CLI entry point and argument parsing
+- Terminal UI (bubbletea + lipgloss)
+- Signal handling (Ctrl+C double-press)
+- Command execution with 30-second timeout
+- Directory sandboxing and permission prompts
+- Conversation state management
+
+**Python handles** (ecosystem strength):
+- Ollama API integration (streaming, tool calls)
+- Document operations (PDF, Word, Excel, PowerPoint, CSV)
+- Automation script generation and execution
+
+**Communication:** JSON request/response over stdin/stdout. Go spawns Python as subprocess.
+
 ### Permission-Gated Actions
-The core constraint: the agent should **never suppress the chatbot personality** of underlying models, but must **always ask permission before executing actions**. This dual nature means:
+The core principle: **always ask permission before executing actions**. This means:
 
 - **Chat responses**: Flow naturally without interruption
 - **Action requests**: Detected, presented to user, and only executed with explicit approval
@@ -20,7 +37,7 @@ The application uses a custom signal handler with double-press-to-exit behavior:
 - **First Ctrl+C**: Warning message, increments `exit_count`
 - **Second Ctrl+C**: Actual exit
 - This applies both to prompt input and during model output streaming
-- The signal handler is set up in `main.py` and must not be overridden by other components
+- The signal handler is set up in `cmd/slice/main.go` and must not be overridden by other components
 
 ### UI/UX Requirements
 - **Prompt cursor**: Must be 🍕 (pizza emoji)
@@ -33,48 +50,69 @@ The application uses a custom signal handler with double-press-to-exit behavior:
 ## Project Structure
 
 ```
-src/slice_agent/
-├── __init__.py         # Package version
-├── main.py             # CLI entry point, signal handling, orchestration
-├── ui.py               # Terminal UI components (Rich, prompt-toolkit)
-├── agent.py            # Agent logic, Ollama integration, action detection
-├── executor.py         # Safe command execution with permission prompts
-├── document_reader.py  # Read PDF, Word, Excel, CSV, text files
-└── document_writer.py  # Write/modify Word, Excel, PowerPoint, CSV, text files
+slice_tool/
+├── cmd/slice/
+│   └── main.go                    # Go entry point
+├── internal/
+│   ├── ui/
+│   │   ├── app.go                 # Main bubbletea app orchestrator
+│   │   ├── chat.go                # Chat view with streaming
+│   │   ├── model_selector.go      # Model selection view
+│   │   └── styles.go              # Lipgloss styles
+│   ├── executor/
+│   │   ├── executor.go            # Command execution with timeout
+│   │   ├── sandbox.go             # Sandboxing & path validation
+│   │   └── permissions.go         # Permission prompts
+│   ├── python/
+│   │   ├── service.go             # Python subprocess management
+│   │   └── protocol.go            # JSON request/response types
+│   └── state/
+│       ├── conversation.go        # Conversation history
+│       └── tracking.go            # Anti-loop tracking
+├── python/
+│   ├── service.py                 # Main Python service (JSON stdin/stdout)
+│   ├── ollama_client.py           # Ollama API wrapper
+│   ├── document_reader.py         # Read PDF, Word, Excel, CSV, text
+│   ├── document_writer.py         # Write Word, Excel, PowerPoint, CSV, text
+│   └── automation.py              # Script generation & execution
+├── go.mod                         # Go dependencies
+└── pyproject.toml                 # Python dependencies
 ```
 
 **Separation of concerns:**
-- `main.py`: CLI entry, signal handling, high-level flow
-- `ui.py`: All terminal rendering, user input, spinners, model selection
-- `agent.py`: Conversation state, Ollama API calls, tool/XML action handling
-- `executor.py`: Command execution, permission prompts, safety checks
-- `document_reader.py`: Multi-format document reading utilities
-- `document_writer.py`: Multi-format document writing/modification utilities
+- **Go (cmd/, internal/)**: CLI, UI, command execution, sandboxing, orchestration
+- **Python (python/)**: Ollama API, document operations, automation scripts
+- **Bridge (internal/python/)**: JSON communication between Go and Python
 
 ## Development Commands
 
 ```bash
-# Install in editable mode with dev dependencies
+# Install Python dependencies with dev tools
 pip install -e ".[dev]"
 
+# Build Go binary
+go build -o slice cmd/slice/main.go
+
 # Run the CLI locally
-slice
+./slice
 
-# Or run directly without installation
-python -m slice_agent.main
+# Run Go tests
+go test ./...
 
-# Run tests
+# Format Go code
+go fmt ./...
+
+# Run Python tests
 pytest
 
-# Format code (Black)
-black src/ tests/
+# Format Python code (Black - line-length 100)
+black python/
 
-# Lint (Ruff)
-ruff check src/ tests/
-
-# Type check (if mypy is added)
-mypy src/
+# Lint Python code (Ruff - line-length 100)
+ruff check python/
 ```
+
+**Note:** Both Black and Ruff are configured for line-length=100 and target Python 3.9+ (see pyproject.toml).
 
 ## Key Dependencies
 
@@ -88,7 +126,7 @@ mypy src/
 
 ## Action Detection Implementation
 
-The agent uses a **dual-mode approach** for detecting and executing actions:
+The tool uses a **dual-mode approach** for detecting and executing actions:
 
 ### Tool Calling Mode (Preferred)
 For models that support Ollama's function/tool calling:
@@ -106,11 +144,11 @@ For models without tool support:
 - User is prompted for permission before execution
 - Results are injected back into the response text
 
-The agent automatically detects model capabilities and selects the appropriate mode.
+The tool automatically detects model capabilities and selects the appropriate mode.
 
 ## Document Operations
 
-The agent supports comprehensive document reading and writing across multiple formats.
+The tool supports comprehensive document reading and writing across multiple formats.
 
 ### Document Reading
 Via `read_document` tool or `<read file='...'/>` XML tag:
@@ -174,7 +212,7 @@ Via `write_document` tool or `<write file='...' operations='...'/>` XML tag:
 
 ### Python Script Generation for Complex Document Operations
 
-**IMPORTANT**: Local Ollama models often struggle with complex multi-step document workflows. To solve this, the agent provides two distinct tools with clear separation of concerns:
+**IMPORTANT**: Local Ollama models often struggle with complex multi-step document workflows. To solve this, the tool provides two distinct tools with clear separation of concerns:
 
 **Two-Tool Approach:**
 
@@ -195,14 +233,14 @@ Via `write_document` tool or `<write file='...' operations='...'/>` XML tag:
 
 Models call this tool with:
 - `task_description`: Brief explanation of what the script will do
-- `script_code`: Complete Python code importing from `slice_agent.document_reader` and `slice_agent.document_writer`
+- `script_code`: Complete Python code importing from `slice_tool.document_reader` and `slice_tool.document_writer`
 
 The tool automatically:
 1. Saves the script to `automation_script.py` in the **current working directory** (where slice was started)
 2. Executes it with user permission in the same directory
 3. Returns the results to the model
 
-**CRITICAL**: All scripts and file operations happen in the directory where slice agent is running. Never use absolute paths or home directory paths (`~/`, `/Users/`, etc.) - just use filenames.
+**CRITICAL**: All scripts and file operations happen in the directory where slice tool is running. Never use absolute paths or home directory paths (`~/`, `/Users/`, etc.) - just use filenames.
 
 **Why this two-tool approach works:**
 
@@ -216,8 +254,8 @@ The tool automatically:
 
 **Example script structure:**
 ```python
-from slice_agent.document_reader import read_document
-from slice_agent.document_writer import write_document
+from slice_tool.document_reader import read_document
+from slice_tool.document_writer import write_document
 
 # Read source data
 excel_data = read_document("source.xlsx")
@@ -311,12 +349,12 @@ The `/model` command allows users to switch models mid-session without restartin
 2. Model selector displays list of available models
 3. User selects a new model with arrow keys
 4. New `SliceAgent` instance is created with the selected model
-5. **Conversation history is preserved** and transferred to the new agent
+5. **Conversation history is preserved** and transferred to the new tool
 6. Sandbox directory remains the same
 
 **Implementation details:**
-- The `ChatUI` class holds a reference to `safe_directory` to pass to new agents
-- Conversation history is copied from the old agent to the new agent via `agent.conversation_history`
+- The `ChatUI` class holds a reference to `safe_directory` to pass to new tools
+- Conversation history is copied from the old tool to the new tool via `tool.conversation_history`
 - Lazy import of `SliceAgent` in `ui.py._switch_model()` to avoid circular dependencies
 - If user cancels model selection, current model is kept
 
@@ -346,5 +384,5 @@ ollama pull mistral
 
 - **Don't break the exit handler**: The double-Ctrl+C pattern in `main.py` must work everywhere
 - **Don't suppress chat**: Permission gates are for **actions only**, not responses
-- **Conversation history**: Maintained in `agent.py`, don't duplicate in UI layer
+- **Conversation history**: Maintained in `tool.py`, don't duplicate in UI layer
 - **Spinner cleanup**: Use Rich's `transient=True` so spinners disappear after response
