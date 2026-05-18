@@ -61,7 +61,16 @@ pip install -e .
 
 ```bash
 # Uninstall the package
-pip uninstall slice-agent
+pip uninstall slice
+```
+
+**Upgrading from v1.0 (slice-agent)?**
+```bash
+# Uninstall old version first
+pip uninstall slice-agent -y
+
+# Then install new version
+pip install -e .
 ```
 
 ## Quick Start
