@@ -4,367 +4,252 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Slice** is a sandboxed IDE-like wrapper for local Ollama models. Built with **Go + Python hybrid architecture**, it provides a terminal interface with permission-gated command execution and document operations.
+**Slice** is a local-first IDE wrapper for Ollama models. Built entirely in **Python**, it provides a beautiful terminal interface with permission-gated command execution, code editing with diffs, and comprehensive document operations.
 
-## Key Architecture Principles
+## Architecture
 
-### Go + Python Hybrid
+**Pure Python** implementation using:
+- **Rich** - Terminal UI with panels, spinners, syntax highlighting
+- **Ollama Python SDK** - Direct API integration for streaming chat and tool calling
+- **prompt-toolkit** - Interactive prompts with command history
+- Document libraries - pypdf, python-docx, openpyxl, python-pptx
 
-**Go handles** (fast, compiled):
-- CLI entry point and argument parsing
-- Terminal UI (bubbletea + lipgloss)
-- Signal handling (Ctrl+C double-press)
-- Command execution with 30-second timeout
-- Directory sandboxing and permission prompts
-- Conversation state management
+### Core Components
 
-**Python handles** (ecosystem strength):
-- Ollama API integration (streaming, tool calls)
-- Document operations (PDF, Word, Excel, PowerPoint, CSV)
-- Automation script generation and execution
+1. **main.py** - CLI entry point, signal handling (double Ctrl+C to exit), startup banner
+2. **ui.py** - ModelSelector (arrow-key selection) and ChatUI (prompt interface)
+3. **chat.py** - ChatSession class, Ollama API integration, tool definitions and execution
+4. **executor.py** - CommandExecutor class for sandboxed bash execution with permission prompts
+5. **document_reader.py** - Read PDF, Word, Excel, PowerPoint, CSV, text files
+6. **document_writer.py** - Write Word, Excel, PowerPoint, CSV, text files with operations
 
-**Communication:** JSON request/response over stdin/stdout. Go spawns Python as subprocess.
-
-### Permission-Gated Actions
-The core principle: **always ask permission before executing actions**. This means:
-
-- **Chat responses**: Flow naturally without interruption
-- **Action requests**: Detected, presented to user, and only executed with explicit approval
-- The distinction is critical—don't break chat flow with permission prompts unless an actual system action is requested
-
-### Signal Handling (Ctrl+C)
-The application uses a custom signal handler with double-press-to-exit behavior:
-- **First Ctrl+C**: Warning message, increments `exit_count`
-- **Second Ctrl+C**: Actual exit
-- This applies both to prompt input and during model output streaming
-- The signal handler is set up in `cmd/slice/main.go` and must not be overridden by other components
-
-### UI/UX Requirements
-- **Prompt cursor**: Must be 🍕 (pizza emoji)
-- **Thinking indicator**: Must show "baking..." with a spinner (not frozen, not stuck)
-- **Streaming responses**: Tokens appear word-by-word as the model generates them
-- **Model selection**: User selects with arrow keys from list of local Ollama models
-- **Model switching**: User can type `/model` during chat to switch to a different model without restarting
-- **Graceful degradation**: Handle Ollama connection failures, missing models, etc.
-
-## Project Structure
+### Project Structure
 
 ```
-slice_tool/
-├── cmd/slice/
-│   └── main.go                    # Go entry point
-├── internal/
-│   ├── ui/
-│   │   ├── app.go                 # Main bubbletea app orchestrator
-│   │   ├── chat.go                # Chat view with streaming
-│   │   ├── model_selector.go      # Model selection view
-│   │   └── styles.go              # Lipgloss styles
-│   ├── executor/
-│   │   ├── executor.go            # Command execution with timeout
-│   │   ├── sandbox.go             # Sandboxing & path validation
-│   │   └── permissions.go         # Permission prompts
-│   ├── python/
-│   │   ├── service.go             # Python subprocess management
-│   │   └── protocol.go            # JSON request/response types
-│   └── state/
-│       ├── conversation.go        # Conversation history
-│       └── tracking.go            # Anti-loop tracking
-├── python/
-│   ├── service.py                 # Main Python service (JSON stdin/stdout)
-│   ├── ollama_client.py           # Ollama API wrapper
-│   ├── document_reader.py         # Read PDF, Word, Excel, CSV, text
-│   ├── document_writer.py         # Write Word, Excel, PowerPoint, CSV, text
-│   └── automation.py              # Script generation & execution
-├── go.mod                         # Go dependencies
-└── pyproject.toml                 # Python dependencies
+slice_agent/
+├── src/slice/
+│   ├── main.py              # Entry point & signal handling
+│   ├── ui.py                # ModelSelector & ChatUI (Rich + prompt-toolkit)
+│   ├── chat.py              # ChatSession with Ollama integration (~629 lines)
+│   ├── executor.py          # CommandExecutor for sandboxed bash (~234 lines)
+│   ├── document_reader.py   # Multi-format document reading (~222 lines)
+│   └── document_writer.py   # Multi-format document writing (~442 lines)
+├── pyproject.toml           # Python package config (v1.1.0)
+└── README.md                # User documentation
 ```
-
-**Separation of concerns:**
-- **Go (cmd/, internal/)**: CLI, UI, command execution, sandboxing, orchestration
-- **Python (python/)**: Ollama API, document operations, automation scripts
-- **Bridge (internal/python/)**: JSON communication between Go and Python
 
 ## Development Commands
 
 ```bash
-# Install Python dependencies with dev tools
+# Install with dev dependencies
 pip install -e ".[dev]"
 
-# Build Go binary
-go build -o slice cmd/slice/main.go
+# Run Slice
+slice
 
-# Run the CLI locally
-./slice
-
-# Run Go tests
-go test ./...
-
-# Format Go code
-go fmt ./...
-
-# Run Python tests
+# Run tests
 pytest
 
-# Format Python code (Black - line-length 100)
-black python/
+# Format code (line-length 100, target py39)
+black src/
 
-# Lint Python code (Ruff - line-length 100)
-ruff check python/
+# Lint code (line-length 100, target py39)
+ruff check src/
 ```
 
-**Note:** Both Black and Ruff are configured for line-length=100 and target Python 3.9+ (see pyproject.toml).
+## Key Architecture Principles
 
-## Key Dependencies
+### 1. Permission-Gated Actions
 
-- **rich**: Terminal styling, panels, spinners, console output
-- **ollama**: Python client for Ollama API (model listing, chat)
-- **prompt-toolkit**: Interactive prompt with key bindings
-- **pypdf**: PDF reading
-- **python-docx**: Word document reading and writing
-- **openpyxl**: Excel spreadsheet reading and writing
-- **python-pptx**: PowerPoint presentation creation and modification
+**Core principle:** Always ask permission before executing actions.
 
-## Action Detection Implementation
+- **Chat responses** flow naturally without interruption
+- **Tool calls** (bash, edit_code, write_document) trigger permission prompts
+- User sees the command/operation and context before approval
+- Never execute actions silently
 
-The tool uses a **dual-mode approach** for detecting and executing actions:
+### 2. Tool-Based Model Interaction
 
-### Tool Calling Mode (Preferred)
-For models that support Ollama's function/tool calling:
-- Model is given an `execute_command` tool definition
-- When the model wants to run a command, it calls the tool with parameters
-- User is prompted for permission before execution
-- Results are fed back to the model for final response
+Slice uses Ollama's function/tool calling feature. Models that support tools receive 4 tool definitions:
 
-**Supported models**: llama3.x, mistral, mixtral, command-r, qwen2
+**Available Tools:**
+1. **bash** - Execute shell commands (file operations, git, search, etc.)
+2. **read_document** - Read PDF, Word (.docx), Excel (.xlsx), CSV, text files
+3. **write_document** - Write Word, Excel, PowerPoint, CSV, text with JSON operations
+4. **edit_code** - Edit source code files with diff preview and approval
 
-### XML Fallback Mode
-For models without tool support:
-- System prompt instructs model to wrap commands in XML: `<action command='ls'>reason</action>`
-- Agent parses XML tags and extracts commands
-- User is prompted for permission before execution
-- Results are injected back into the response text
+**Tool-capable models:** llama3.x, mistral, gemma, gemma2, gemma4, command-r, qwen, qwen2
 
-The tool automatically detects model capabilities and selects the appropriate mode.
+**How it works:**
+- Model decides when to call tools based on user request
+- ChatSession receives tool calls from Ollama API
+- Tool handlers execute with user permission
+- Results fed back to model for final response
+
+### 3. Directory Sandboxing
+
+All operations are restricted to the directory where `slice` was started.
+
+**CommandExecutor detects sandbox escapes:**
+- Absolute paths (`/tmp/file`)
+- Home directory (`~/Documents/file`)
+- Parent traversal (`../../../file`)
+- Directory changes (`cd /tmp`)
+
+**Protection layers:**
+- Red warning panel for sandbox escapes
+- Requires explicit "yes" confirmation (not just "y")
+- Shows all suspicious paths found in command
+- 30-second timeout on all commands
+
+### 4. Signal Handling (Ctrl+C)
+
+**Double-press to exit pattern:**
+- First Ctrl+C: Warning message, increments `exit_count`
+- Second Ctrl+C: Actual exit
+- Applies during prompt input and model streaming
+- Set up in `main.py`, must not be overridden
+
+### 5. UI/UX Requirements
+
+**Visual identity:**
+- **Prompt cursor:** 🍕 (pizza emoji)
+- **Thinking indicator:** "baking..." with spinner
+- **Streaming responses:** Word-by-word token display
+- **Model selection:** Arrow-key navigation with tool support indicators `[tools ✓]`
+- **Model switching:** `/model` command preserves conversation history
+
+**Implementation details:**
+- Rich Live displays for spinners (use `transient=True` for cleanup)
+- Syntax-highlighted diffs for code edits
+- Panel displays for commands and outputs
+- FileHistory for command history (up/down arrows)
+
+## Tool Execution Flow
+
+### Bash Tool
+```python
+# In chat.py, ChatSession._execute_command()
+1. Model calls bash tool with command string
+2. ChatSession passes to CommandExecutor.execute_with_permission()
+3. CommandExecutor shows permission prompt with context
+4. User approves/denies
+5. If approved: subprocess runs with 30s timeout in safe_directory
+6. Result returned to model
+```
+
+### Read Document Tool
+```python
+# In chat.py, ChatSession._read_document()
+1. Model calls read_document with file_path
+2. Imports from document_reader module
+3. read_document() detects file type by extension
+4. Appropriate reader (pypdf, python-docx, openpyxl, etc.)
+5. Returns formatted text content to model
+```
+
+### Write Document Tool
+```python
+# In chat.py, ChatSession._write_document()
+1. Model calls write_document with file_path and operations JSON
+2. Operations parsed (single object or array)
+3. Imports from document_writer module
+4. write_document() applies operations sequentially
+5. Returns success/failure count to model
+```
+
+### Edit Code Tool
+```python
+# In chat.py, ChatSession._edit_code()
+1. Model calls edit_code with file_path, old_content, new_content, description
+2. Read original file content
+3. Check if old_content exists exactly
+4. Generate unified diff with difflib
+5. Show syntax-highlighted diff in panel
+6. Ask user for approval
+7. If approved: write new content
+8. Return result to model
+```
 
 ## Document Operations
 
-The tool supports comprehensive document reading and writing across multiple formats.
-
-### Document Reading
-Via `read_document` tool or `<read file='...'/>` XML tag:
-
-**Supported formats:**
-- **PDF (.pdf)** - Extract text content from all pages
-- **Word (.docx)** - Read paragraphs and tables
-- **Excel (.xlsx)** - Read all sheets with row/column data (row-numbered format)
+### Supported Read Formats
+- **PDF (.pdf)** - Extract text from all pages (pypdf)
+- **Word (.docx)** - Read paragraphs and tables (python-docx)
+- **Excel (.xlsx)** - Read all sheets with row/column data (openpyxl)
 - **CSV (.csv)** - Read all rows with row numbers
-- **Text files** (.txt, .md, .py, .js, etc.) - Read content with encoding detection
+- **Text files** - Any text-based file with encoding detection
 
-**Key behaviors:**
-- Excel files return ALL sheets and data at once - no need to re-read
-- Row-numbered format makes it easy to reference specific data
-- Built-in encoding detection for text files
-- Legacy .xls format not supported (must convert to .xlsx)
+### Supported Write Formats
+- **Word (.docx)** - append_paragraph, replace_text, insert_after
+- **Excel (.xlsx)** - set_cell, append_row, set_column
+- **PowerPoint (.pptx)** - add_slide
+- **CSV (.csv)** - append_row, set_cell
+- **Text files** - replace_content, append_text
 
-### Document Writing
-Via `write_document` tool or `<write file='...' operations='...'/>` XML tag:
+**PDF is read-only** - cannot write to PDF files.
 
-**Supported formats:**
-- **Word (.docx)** - Append paragraphs, replace text, insert content
-- **Excel (.xlsx)** - Set cells, append rows, modify columns
-- **PowerPoint (.pptx)** - Add slides with title and content
-- **CSV (.csv)** - Append rows, modify cells
-- **Text files** - Replace content, append text, find/replace
-- **PDF (.pdf)** - **NOT SUPPORTED** (PDFs are read-only by design)
-
-**Operation examples:**
+### Operation Examples
 
 ```python
 # Word operations
-{"type": "append_paragraph", "text": "New paragraph text"}
-{"type": "replace_text", "find": "old text", "replace": "new text"}
-{"type": "insert_after", "search": "Section Header", "text": "New content"}
+{"type": "append_paragraph", "text": "New paragraph"}
+{"type": "replace_text", "find": "old", "replace": "new"}
+{"type": "insert_after", "search": "Header", "text": "Content"}
 
 # Excel operations
 {"type": "set_cell", "sheet": "Sheet1", "row": 5, "col": "M", "value": "Data"}
 {"type": "append_row", "sheet": "Sheet1", "values": ["A", "B", "C"]}
-{"type": "set_column", "sheet": "Sheet1", "col": "M", "start_row": 3, "values": ["X", "Y", "Z"]}
+{"type": "set_column", "sheet": "Sheet1", "col": "M", "start_row": 3, "values": ["X", "Y"]}
 
 # PowerPoint operations
-{"type": "add_slide", "title": "Slide Title", "content": "Slide content text"}
+{"type": "add_slide", "title": "Title", "content": "Content"}
 
 # CSV operations
 {"type": "append_row", "values": ["col1", "col2", "col3"]}
-{"type": "set_cell", "row": 2, "col": 1, "value": "New Value"}
+{"type": "set_cell", "row": 2, "col": 1, "value": "Value"}
 
 # Text file operations
 {"type": "replace_content", "text": "Entirely new content"}
 {"type": "append_text", "text": "\nAppended text"}
 ```
 
-**Implementation details:**
-- Operations are passed as JSON strings in the tool parameter
-- Can pass single operation object or array of operations
-- `document_writer.py` handles all write operations
-- Uses python-docx, openpyxl, python-pptx libraries
-- Files are created if they don't exist (except for some operations)
-- Returns success/error status and count of operations applied
-
-### Python Script Generation for Complex Document Operations
-
-**IMPORTANT**: Local Ollama models often struggle with complex multi-step document workflows. To solve this, the tool provides two distinct tools with clear separation of concerns:
-
-**Two-Tool Approach:**
-
-1. **`write_document`** - For SIMPLE tasks only (1-5 operations, single file)
-   - Append one paragraph to Word doc
-   - Update 2-3 cells in Excel
-   - Single-file edits with few operations
-
-2. **`generate_automation_script`** - For COMPLEX tasks (the tool models should prefer for complex work)
-   - Multiple source/destination files
-   - Data parsing and matching (Excel → Word lookups)
-   - 10+ individual operations required
-   - Data extraction/transformation logic
-   - Cross-file data transfers or synchronization
-   - Conditional operations based on document content
-
-**How `generate_automation_script` works:**
-
-Models call this tool with:
-- `task_description`: Brief explanation of what the script will do
-- `script_code`: Complete Python code importing from `slice_tool.document_reader` and `slice_tool.document_writer`
-
-The tool automatically:
-1. Saves the script to `automation_script.py` in the **current working directory** (where slice was started)
-2. Executes it with user permission in the same directory
-3. Returns the results to the model
-
-**CRITICAL**: All scripts and file operations happen in the directory where slice tool is running. Never use absolute paths or home directory paths (`~/`, `/Users/`, etc.) - just use filenames.
-
-**Why this two-tool approach works:**
-
-✅ **Clear separation**: Models see two distinct tools instead of one tool with a paragraph of guidance buried in the description
-
-✅ **Forced choice**: Having separate tools makes models actively choose the right path
-
-✅ **Better prompting**: Tool descriptions use ✅ CORRECT vs ❌ WRONG examples to guide behavior
-
-✅ **Automatic execution**: The script tool handles save + execute, so models don't have to orchestrate multiple steps
-
-**Example script structure:**
-```python
-from slice_tool.document_reader import read_document
-from slice_tool.document_writer import write_document
-
-# Read source data
-excel_data = read_document("source.xlsx")
-# Parse and process data...
-
-# Write to destination
-result = write_document("destination.docx", [
-    {"type": "replace_text", "find": "X", "replace": "Y"},
-    # ... many more operations
-])
-```
-
-**For XML fallback mode (models without tool support):**
-The system message explicitly instructs models to generate Python scripts for complex tasks using the `<write>` tag to save the script, then `<action>` to execute it.
-
-### Command Execution Safety
-All commands execute through `CommandExecutor` which provides multiple layers of protection:
-
-**1. Directory Sandboxing**
-- Commands are restricted to the directory where `slice` was started
-- Detects attempts to access paths outside the sandbox:
-  - Absolute paths (`/tmp/file`)
-  - Home directory (`~/Documents/file`)
-  - Parent directory traversal (`../../../file`)
-  - Directory changes (`cd /tmp`)
-- Shows red warning for sandbox escapes and requires explicit "yes" confirmation
-- Displays all suspicious paths found in the command
-
-**2. Permission Prompts**
-- Shows the command in a syntax-highlighted panel
-- Explains the reason (context from model)
-- Normal commands: asks y/N permission
-- Dangerous/escaped commands: requires explicit "yes" confirmation with red warning
-
-**3. Dangerous Pattern Detection**
-- Checks for obviously dangerous patterns (rm -rf /, mkfs, dd, etc.)
-- Shows red border and requires explicit "yes" for dangerous commands
-
-**4. Execution Safety**
-- 30-second timeout to prevent runaway commands
-- Captures stdout/stderr and displays formatted results
-- Shows clear success/failure status
-
-**5. Local-First Command Strategy**
-- Model is guided to start with simple commands in the CURRENT directory first
-- Should use `ls` before `ls -R`, and `ls` before `find`
-- Only search subdirectories if files aren't found locally
-- This prevents the model from being overly aggressive with recursive searches
-- Tool descriptions in both tool-calling and XML modes enforce this behavior
-
-**6. Direct File Access (No Verification)**
-- When user mentions a specific filename, model should try to read it directly
-- DO NOT run `ls` or `find` commands to verify file existence first
-- Assume files user mentions are in the current directory
-- The `read_document` tool handles file-not-found errors gracefully
-- Only use `ls` when user explicitly asks to list/see files, not for verification
-- This prevents unnecessary command execution and speeds up file operations
-
-**7. Anti-Loop Safeguards**
-To prevent the model from getting stuck in repetitive loops:
-- **No duplicate tool calls**: Model must NOT call the same tool with the same parameters twice in one turn
-- **No re-reading**: Once a file is read, its content is in conversation history - don't read it again
-- **No hallucinated files**: Model must ONLY read files explicitly mentioned by the user
-- **Excel files return all data**: Excel/CSV reads return complete content - no need to re-read for different sheets
-- **One action per file**: Read each document once, use each command once per turn
-- Tool descriptions explicitly forbid repetition and hallucination
-
-**Runtime Enforcement:**
-- `SliceAgent` tracks `files_read_this_turn` and `commands_run_this_turn` sets
-- Both sets are cleared at the start of each user turn
-- Tool handlers check these sets and REJECT duplicate operations before execution
-- Blocked duplicates return clear error messages to the model ("REJECTED: You already read X")
-- Applies to both tool-calling mode and XML fallback mode
-- User sees red warning when duplicates are blocked: "⚠️  Blocked duplicate file read: X"
-
-**Natural File Error Handling:**
-- File reads that reference non-existent files are NOT blocked or rejected
-- The `read_document` function naturally returns a "File not found" error
-- This error is passed to the model in conversation history
-- Model should handle file-not-found errors gracefully and continue with its task
-- No user prompts or warnings are shown for hallucinated files
-- This prevents the model from getting stuck trying to find files that don't exist
-- The model learns from the error and should focus on files that do exist
-
-## Model Switching with /model Command
-
-The `/model` command allows users to switch models mid-session without restarting the application.
+## Model Switching with /model
 
 **How it works:**
-1. User types `/model` at the prompt
-2. Model selector displays list of available models
-3. User selects a new model with arrow keys
-4. New `SliceAgent` instance is created with the selected model
-5. **Conversation history is preserved** and transferred to the new tool
+1. User types `/model` at the 🍕 prompt
+2. ModelSelector displays available models with arrow-key navigation
+3. User selects new model
+4. New ChatSession created with selected model
+5. **Conversation history preserved** via `session.conversation_history`
 6. Sandbox directory remains the same
 
-**Implementation details:**
-- The `ChatUI` class holds a reference to `safe_directory` to pass to new tools
-- Conversation history is copied from the old tool to the new tool via `tool.conversation_history`
-- Lazy import of `SliceAgent` in `ui.py._switch_model()` to avoid circular dependencies
-- If user cancels model selection, current model is kept
+**Implementation:**
+- ChatUI holds reference to `safe_directory`
+- On model switch: `new_session = ChatSession(new_model, safe_directory)`
+- Copy history: `new_session.conversation_history = old_session.conversation_history`
+- Lazy import of ChatSession in `ui.py._switch_model()` avoids circular dependencies
 
-**Why preserve conversation history:**
-Users may want to switch models to:
-- Get a different perspective on the same problem
-- Use a faster/smaller model for simple tasks
-- Use a more capable model for complex reasoning
+## System Message Guidelines
 
-Preserving history allows seamless continuation of the conversation with context intact.
+The system message in `chat.py` guides model behavior:
+
+**Tool usage rules:**
+- Use bash for file/system operations, NOT for echoing knowledge answers
+- Use read_document directly without ls/find verification first
+- Use edit_code for source code with diff workflow
+- Use write_document for Office documents
+
+**Git operation rules:**
+- Read-only: safe to suggest (status, log, diff, show, branch)
+- Local: safe to suggest (add, commit, checkout -b, merge)
+- Remote: **NEVER suggest push/pull unless user explicitly asks**
+- After commits, remind user they can push when ready
+
+**File operation rules:**
+- When user mentions filename, read directly - don't verify existence first
+- Use `touch filename` for empty files
+- Multi-file search: bash with grep -r or find
 
 ## Testing Local Ollama Models
 
@@ -373,16 +258,74 @@ Ensure Ollama is running:
 ollama list  # Should show downloaded models
 ```
 
-If no models exist:
+Download models:
 ```bash
-ollama pull llama2
-# or
+# Recommended for balanced chat/action behavior
+ollama pull gemma4
 ollama pull mistral
+ollama pull qwen2
+
+# Good for code-heavy tasks
+ollama pull llama3.1
 ```
 
 ## Common Pitfalls
 
-- **Don't break the exit handler**: The double-Ctrl+C pattern in `main.py` must work everywhere
-- **Don't suppress chat**: Permission gates are for **actions only**, not responses
-- **Conversation history**: Maintained in `tool.py`, don't duplicate in UI layer
-- **Spinner cleanup**: Use Rich's `transient=True` so spinners disappear after response
+1. **Don't break signal handling**
+   - The double-Ctrl+C pattern in `main.py` must work everywhere
+   - Don't override the signal handler in other modules
+
+2. **Don't suppress chat flow**
+   - Permission prompts are for **actions only** (bash, edit_code, write_document)
+   - Chat responses must stream naturally without interruption
+   - Never prompt for permission on read_document
+
+3. **Conversation history**
+   - Maintained in `ChatSession.conversation_history`
+   - Don't duplicate in UI layer
+   - Preserved when switching models
+
+4. **Spinner cleanup**
+   - Use Rich `Live` with `transient=True`
+   - Spinners must disappear after response completes
+   - "baking..." spinner shows during model thinking
+
+5. **Sandbox escapes**
+   - Always use `safe_directory` for command execution
+   - Never bypass sandbox checks
+   - Show red warnings for attempts to escape
+
+6. **Model behavior differences**
+   - llama3.x models may try to use bash for knowledge questions
+   - gemma4, mistral, qwen2 better at distinguishing chat vs. actions
+   - Tool support auto-detected, but some models hallucinate unsupported tools
+
+## Key Dependencies
+
+```toml
+# Core dependencies (from pyproject.toml)
+rich>=13.0.0              # Terminal UI
+ollama>=0.1.0             # Ollama API client
+prompt-toolkit>=3.0.0     # Interactive prompts
+pypdf>=4.0.0              # PDF reading
+python-docx>=1.0.0        # Word documents
+openpyxl>=3.0.0           # Excel spreadsheets
+python-pptx>=0.6.0        # PowerPoint presentations
+
+# Dev dependencies
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+black>=23.0.0             # Formatter (line-length 100)
+ruff>=0.1.0               # Linter (line-length 100)
+```
+
+## Version History
+
+- **v1.1.0** - Current version, pure Python architecture
+  - Removed Go hybrid architecture
+  - Added code editing with diffs (edit_code tool)
+  - Improved model switching with history preservation
+  - Enhanced terminal UI with Rich
+  
+- **v1.0.x** - Initial release with Go + Python hybrid
+  - Removed in commit 047c7a6
