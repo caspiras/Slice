@@ -1,11 +1,11 @@
-"""Main entry point for slice-agent CLI."""
+"""Main entry point for Slice IDE."""
 
 import sys
 import os
 import signal
 from rich.console import Console
 from .ui import ModelSelector, ChatUI
-from .agent import SliceAgent
+from .chat import ChatSession
 
 console = Console()
 exit_count = 0
@@ -32,17 +32,17 @@ def main():
     console.print("[cyan]" + "─" * 64 + "[/cyan]")
     console.print("""[bold cyan]
 
-▄█████ ▄▄    ▄▄  ▄▄▄▄ ▄▄▄▄▄   ▄████▄  ▄▄▄▄ ▄▄▄▄▄ ▄▄  ▄▄ ▄▄▄▄▄▄
-▀▀▀▄▄▄ ██    ██ ██▀▀▀ ██▄▄    ██▄▄██ ██ ▄▄ ██▄▄  ███▄██   ██
-█████▀ ██▄▄▄ ██ ▀████ ██▄▄▄   ██  ██ ▀███▀ ██▄▄▄ ██ ▀██   ██
-                                                               [/bold cyan]""")
+▄█████ ▄▄    ▄▄  ▄▄▄▄ ▄▄▄▄▄
+▀▀▀▄▄▄ ██    ██ ██▀▀▀ ██▄▄
+█████▀ ██▄▄▄ ██ ▀████ ██▄▄▄
+                                [/bold cyan]""")
     console.print("[cyan]" + "─" * 64 + "[/cyan]")
-    console.print("[cyan]v1.0[/cyan]")
+    console.print("[cyan]v1.1[/cyan]")
     console.print()
     console.print("[cyan]💡 Tip: Type /model anytime to switch models during your session[/cyan]")
     console.print()
     console.print("[dim]Different models have different strengths. Choose based on your task:[/dim]")
-    console.print("[dim]  • Code/agentic tasks: Models trained for tool use work best[/dim]")
+    console.print("[dim]  • Code tasks: Models trained for tool use work best[/dim]")
     console.print("[dim]  • Mixed chat/actions: Try gemma4, mistral, or qwen2[/dim]")
     console.print()
 
@@ -54,19 +54,12 @@ def main():
         console.print("[yellow]No model selected. Exiting.[/yellow]")
         return
 
-    # Initialize agent with selected model and current directory as sandbox
+    # Initialize chat session with selected model
     safe_dir = os.getcwd()
-    agent = SliceAgent(selected_model, safe_directory=safe_dir)
-
-    # Show agent mode
-    if agent.supports_tools:
-        console.print("[green]✓ Using tool calling for actions[/green]")
-    else:
-        console.print("[yellow]⚠ Using XML fallback for actions (model doesn't support tools)[/yellow]")
-    console.print()
+    session = ChatSession(selected_model, safe_directory=safe_dir)
 
     # Start chat UI
-    chat_ui = ChatUI(agent, safe_directory=safe_dir)
+    chat_ui = ChatUI(session, safe_directory=safe_dir)
     chat_ui.run()
 
 

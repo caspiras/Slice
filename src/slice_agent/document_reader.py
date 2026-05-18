@@ -2,6 +2,10 @@
 
 from pathlib import Path
 from typing import Dict, Any
+import warnings
+
+# Suppress openpyxl warnings about unsupported Excel extensions
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
 
 
 def read_document(file_path: str) -> Dict[str, Any]:

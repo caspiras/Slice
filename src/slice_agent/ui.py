@@ -1,4 +1,4 @@
-"""UI components for slice-agent using Rich and prompt-toolkit."""
+"""UI components for Slice IDE using Rich and prompt-toolkit."""
 
 from typing import Optional
 import sys
@@ -140,8 +140,8 @@ class ModelSelector:
 class ChatUI:
     """Chat interface with pizza emoji cursor and 'baking' spinner."""
 
-    def __init__(self, agent, safe_directory=None):
-        self.agent = agent
+    def __init__(self, session, safe_directory=None):
+        self.session = session
         self.console = Console()
         self.exit_count = 0
         self.safe_directory = safe_directory
@@ -174,80 +174,22 @@ class ChatUI:
                     self._switch_model()
                     continue
 
-                # Stream response with live updates
-                # Signal handler will be installed after first token to allow Ctrl+C during "baking"
-                self.streaming_interrupted = False
-                signal_handler_installed = False
-                old_handler = None
-
-                def streaming_interrupt_handler(signum, frame):
-                    self.streaming_interrupted = True
-
                 try:
-                    response_text = ""
-                    first_token = True
+                    # Stream response - agent handles interrupts internally
+                    completed = self.session.process_stream(user_input)
 
-                    with Live(
-                        Spinner("dots", text="[yellow]baking...[/yellow]"),
-                        console=self.console,
-                        auto_refresh=True,
-                        refresh_per_second=10,
-                        transient=True
-                    ) as live:
-                        for token in self.agent.process_stream(user_input):
-                            # Install signal handler after first token arrives
-                            # This allows Ctrl+C to work during initial "baking" phase
-                            if not signal_handler_installed:
-                                old_handler = signal.signal(signal.SIGINT, streaming_interrupt_handler)
-                                signal_handler_installed = True
+                    # If interrupted, don't count towards exit
+                    if not completed:
+                        self.exit_count = 0
+                        continue
 
-                            # Check if streaming was interrupted
-                            if self.streaming_interrupted:
-                                break
-
-                            # Check for tool call signal - exit Live display so prompts are visible
-                            if token == "__TOOL_CALL_START__":
-                                live.stop()
-                                continue
-
-                            # Skip empty tokens
-                            if not token:
-                                continue
-
-                            # On first token, switch from spinner to streaming text
-                            if first_token:
-                                first_token = False
-                                response_text = token
-                                live.update(Panel(response_text, border_style="cyan"))
-                            else:
-                                response_text += token
-                                live.update(Panel(response_text, border_style="cyan"))
-
-                    # Restore original signal handler if it was installed
-                    if signal_handler_installed:
-                        signal.signal(signal.SIGINT, old_handler)
-
-                    # If interrupted, raise KeyboardInterrupt
-                    if self.streaming_interrupted:
-                        # Show final response before interrupting
-                        if response_text:
-                            self.console.print(Panel(response_text, border_style="cyan"))
-                        self.console.print()  # Blank line
-                        raise KeyboardInterrupt()
-
-                    # Display final response (Live was transient, so it's gone)
-                    if response_text:
-                        self.console.print(Panel(response_text, border_style="cyan"))
-                    self.console.print()
+                except KeyboardInterrupt:
+                    # Agent was interrupted, don't count towards exit
+                    self.exit_count = 0
+                    continue
 
                 except Exception as e:
-                    # Restore signal handler on any exception (if it was installed)
-                    if signal_handler_installed:
-                        signal.signal(signal.SIGINT, old_handler)
-                    if isinstance(e, KeyboardInterrupt):
-                        raise
-                    else:
-                        self.console.print(f"\n[red]Error: {e}[/red]\n")
+                    self.console.print(f"\n[red]Error: {e}[/red]\n")
 
             except KeyboardInterrupt:
                 self.exit_count += 1
@@ -274,7 +216,7 @@ class ChatUI:
 
     def _switch_model(self):
         """Switch to a different model."""
-        from .agent import SliceAgent  # Lazy import to avoid circular dependency
+        from .chat import ChatSession  # Lazy import to avoid circular dependency
 
         self.console.print("\n[cyan]Switching models...[/cyan]\n")
 
@@ -286,17 +228,12 @@ class ChatUI:
             return
 
         # Save conversation history
-        old_history = self.agent.conversation_history.copy()
+        old_history = self.session.conversation_history.copy()
 
-        # Create new agent with selected model
-        self.agent = SliceAgent(selected_model, safe_directory=self.safe_directory)
+        # Create new session with selected model
+        self.session = ChatSession(selected_model, safe_directory=self.safe_directory)
 
-        # Restore conversation history to new agent
-        self.agent.conversation_history = old_history
+        # Restore conversation history to new session
+        self.session.conversation_history = old_history
 
-        # Show agent mode
-        if self.agent.supports_tools:
-            self.console.print("[green]✓ Using tool calling for actions[/green]")
-        else:
-            self.console.print("[yellow]⚠ Using XML fallback for actions (model doesn't support tools)[/yellow]")
-        self.console.print()
+        self.console.print(f"[green]✓ Switched to {selected_model}[/green]\n")
