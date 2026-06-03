@@ -37,7 +37,7 @@ def main():
 █████▀ ██▄▄▄ ██ ▀████ ██▄▄▄
                                 [/bold cyan]""")
     console.print("[cyan]" + "─" * 64 + "[/cyan]")
-    console.print("[cyan]v1.1[/cyan]")
+    console.print("[cyan]v1.2 - Full Document Editing[/cyan]")
     console.print()
     console.print("[cyan]💡 Tip: Type /model anytime to switch models during your session[/cyan]")
     console.print()

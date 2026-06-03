@@ -1,3 +1,3 @@
-"""slice-agent: A CLI agent leveraging local Ollama models."""
+"""slice: A local-first IDE wrapper for Ollama models."""
 
-__version__ = "0.1.0"
+__version__ = "1.2.0"

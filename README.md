@@ -10,13 +10,21 @@
 
 Slice is a beautiful terminal IDE that wraps local Ollama models with practical coding tools. Built with **Python** and the **Rich** library, it provides streaming chat, code editing with diffs, document operations, and git integration - all sandboxed to your project directory.
 
+## 🆕 What's New in v1.2.0
+
+- **📝 PDF Writing Enabled** - Create and edit PDFs directly! No more read-only limitation
+- **📊 Enhanced Spreadsheet Support** - Improved tool guidance for better Excel/CSV editing with all models
+- **🔄 Universal Document Editing** - ALL file types in your directory are now editable (PDF, Word, Excel, PowerPoint, CSV, Markdown, code files, etc.)
+- **🎯 Better Model Guidance** - Concrete JSON operation examples help models succeed with document operations
+- **⚡ Cross-Format Operations** - Easily move data between formats (PDF→Excel, Word→Markdown, etc.)
+
 ## What It Does
 
 Slice brings IDE-like capabilities to local Ollama models through a permission-gated interface:
 
 - 💬 **Natural conversation** - Ask questions, discuss code, get explanations
 - ✏️ **Code editing with diffs** - Propose changes, review side-by-side diffs, apply with approval
-- 📄 **Document operations** - Read/write PDF, Word, Excel, PowerPoint, CSV files
+- 📄 **Universal document editing** - Read/write PDF, Word, Excel, PowerPoint, CSV, Markdown, and ANY text-based file
 - 🔧 **Bash execution** - Run commands after approval
 - 🌳 **Git integration** - Stage, commit, create branches (never auto-pushes)
 - 🔒 **Directory sandboxing** - All operations confined to current directory
@@ -123,8 +131,10 @@ Shows a syntax-highlighted diff for your approval before applying changes.
 **Document operations:**
 ```
 🍕 what's the total in the budget.xlsx file for Q2?
+🍕 create a PDF report called summary.pdf with our Q1 findings
+🍕 read contract.pdf and extract the key terms into a spreadsheet
 ```
-Reads Excel/Word/PDF files and answers questions about their content.
+Read/write ANY document type - PDF, Excel, Word, CSV, Markdown, etc.
 
 **Git workflows:**
 ```
@@ -249,8 +259,8 @@ Slice is built entirely in **Python** using the Rich library for beautiful termi
 ### Project Structure
 
 ```
-slice/
-├── src/slice_agent/
+slice_agent/
+├── src/slice/
 │   ├── main.py              # CLI entry point & startup
 │   ├── ui.py                # Rich terminal UI components
 │   ├── chat.py              # Chat session & tool execution
@@ -282,7 +292,8 @@ ruff check src/
 - **rich** - Beautiful terminal UI with panels, spinners, syntax highlighting
 - **prompt-toolkit** - Interactive prompts with command history
 - **ollama** - Python client for Ollama API
-- **pypdf, python-docx, openpyxl, python-pptx** - Document operations (PDF, Word, Excel, PowerPoint)
+- **pypdf, reportlab** - PDF reading and writing
+- **python-docx, openpyxl, python-pptx** - Word, Excel, PowerPoint operations
 
 ## Features
 
@@ -293,7 +304,8 @@ ruff check src/
 
 - 📄 **Document Operations**
   - Read: PDF, Word (.docx), Excel (.xlsx), PowerPoint, CSV, text
-  - Write: Word, Excel, PowerPoint, CSV, text
+  - Write: PDF, Word, Excel, PowerPoint, CSV, text
+  - All document types in the directory are editable
   - Truncates large documents automatically for efficiency
 
 - 🌳 **Git Integration**
@@ -406,7 +418,7 @@ This project is open source. See the repository for license details.
 - Built with [Ollama](https://ollama.ai/) for local AI model hosting
 - Beautiful terminal UI powered by [Rich](https://github.com/Textualize/rich)
 - Interactive prompts via [prompt-toolkit](https://github.com/prompt-toolkit/python-prompt-toolkit)
-- Document handling with pypdf, python-docx, openpyxl, python-pptx
+- Document handling with pypdf, reportlab, python-docx, openpyxl, python-pptx
 - Inspired by the need for safe, permission-gated AI coding tools
 
 ---

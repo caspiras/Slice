@@ -14,7 +14,7 @@ def write_document(file_path: str, operations: Union[Dict, List[Dict]]) -> Dict[
     - PowerPoint (.pptx) - add slides, modify slide text
     - CSV (.csv) - append rows, modify cells
     - Text files (.txt, .md, etc.) - replace content, append text
-    - PDF (.pdf) - NOT SUPPORTED (PDFs are read-only by design)
+    - PDF (.pdf) - create pages, add text/paragraphs, merge PDFs
 
     Args:
         file_path: Path to the document to write/modify
@@ -39,6 +39,11 @@ def write_document(file_path: str, operations: Union[Dict, List[Dict]]) -> Dict[
     PowerPoint (.pptx):
         {"type": "add_slide", "title": "Slide Title", "content": "Slide content text"}
 
+    PDF (.pdf):
+        {"type": "add_page", "title": "Page Title", "content": "Page content text"}
+        {"type": "add_text", "text": "Text content", "x": 100, "y": 500, "font_size": 12}
+        {"type": "add_paragraph", "text": "Paragraph text", "font_size": 12}
+
     CSV (.csv):
         {"type": "append_row", "values": ["col1", "col2", "col3"]}
         {"type": "set_cell", "row": 2, "col": 1, "value": "New Value"}
@@ -62,12 +67,7 @@ def write_document(file_path: str, operations: Union[Dict, List[Dict]]) -> Dict[
 
     try:
         if suffix == '.pdf':
-            return {
-                "success": False,
-                "message": "",
-                "error": "PDF files cannot be edited. PDFs are read-only by design. To modify PDF content, you must create a new PDF or convert to an editable format (Word/Excel) first.",
-                "operations_applied": 0
-            }
+            result = _write_pdf(path, operations, file_exists)
         elif suffix == '.docx':
             result = _write_docx(path, operations, file_exists)
         elif suffix == '.xlsx':
@@ -303,6 +303,131 @@ def _write_pptx(path: Path, operations: List[Dict], file_exists: bool) -> Dict[s
 
     # Save the presentation
     prs.save(path)
+
+    return {
+        "success": True,
+        "message": "; ".join(messages),
+        "error": "",
+        "operations_applied": operations_applied
+    }
+
+
+def _write_pdf(path: Path, operations: List[Dict], file_exists: bool) -> Dict[str, Any]:
+    """Write/create PDF documents."""
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_LEFT
+        from pypdf import PdfReader, PdfWriter
+    except ImportError:
+        raise ImportError(
+            "reportlab and pypdf are required to write PDF files. "
+            "Please reinstall slice: pip install -e ."
+        )
+
+    operations_applied = 0
+    messages = []
+
+    # For creating new PDFs or adding content
+    if not file_exists or any(op.get("type") in ["add_page", "add_paragraph", "add_text"] for op in operations):
+        # Create a new PDF with content
+        doc = SimpleDocTemplate(str(path), pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+
+        for op in operations:
+            op_type = op.get("type", "")
+
+            if op_type == "add_page":
+                title = op.get("title", "")
+                content = op.get("content", "")
+
+                # Add page break if not first page
+                if operations_applied > 0:
+                    story.append(PageBreak())
+
+                # Add title
+                if title:
+                    title_style = ParagraphStyle(
+                        'CustomTitle',
+                        parent=styles['Heading1'],
+                        fontSize=24,
+                        spaceAfter=30
+                    )
+                    story.append(Paragraph(title, title_style))
+
+                # Add content
+                if content:
+                    story.append(Paragraph(content, styles['BodyText']))
+                    story.append(Spacer(1, 0.2*inch))
+
+                operations_applied += 1
+                messages.append(f"Added page: '{title}'")
+
+            elif op_type == "add_paragraph":
+                text = op.get("text", "")
+                font_size = op.get("font_size", 12)
+
+                para_style = ParagraphStyle(
+                    'CustomPara',
+                    parent=styles['BodyText'],
+                    fontSize=font_size,
+                    spaceAfter=12
+                )
+                story.append(Paragraph(text, para_style))
+                operations_applied += 1
+                messages.append(f"Added paragraph with {len(text)} characters")
+
+            elif op_type == "add_text":
+                text = op.get("text", "")
+                font_size = op.get("font_size", 12)
+
+                # For simple text, treat as paragraph
+                para_style = ParagraphStyle(
+                    'CustomText',
+                    parent=styles['Normal'],
+                    fontSize=font_size,
+                    alignment=TA_LEFT
+                )
+                story.append(Paragraph(text, para_style))
+                story.append(Spacer(1, 0.1*inch))
+                operations_applied += 1
+                messages.append(f"Added text: '{text[:50]}...' " if len(text) > 50 else f"Added text: '{text}'")
+
+            else:
+                messages.append(f"Unknown operation type: {op_type}")
+
+        # Build the PDF
+        doc.build(story)
+
+    # For merging PDFs
+    elif file_exists and any(op.get("type") == "merge_pdf" for op in operations):
+        writer = PdfWriter()
+
+        # Read existing PDF
+        reader = PdfReader(str(path))
+        for page in reader.pages:
+            writer.add_page(page)
+
+        for op in operations:
+            op_type = op.get("type", "")
+
+            if op_type == "merge_pdf":
+                source_path = op.get("source", "")
+                if source_path and Path(source_path).exists():
+                    source_reader = PdfReader(source_path)
+                    for page in source_reader.pages:
+                        writer.add_page(page)
+                    operations_applied += 1
+                    messages.append(f"Merged PDF from '{source_path}'")
+                else:
+                    messages.append(f"Warning: Source PDF not found: '{source_path}'")
+
+        # Write the merged PDF
+        with open(path, 'wb') as output_file:
+            writer.write(output_file)
 
     return {
         "success": True,
