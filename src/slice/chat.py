@@ -58,7 +58,19 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "write_document",
-            "description": "Write to a document file (Word, Excel, PowerPoint, CSV, or text). For simple tasks only (1-5 operations). Use generate_automation_script for complex multi-file tasks.",
+            "description": (
+                "Write to document files (Word, Excel, PowerPoint, CSV, PDF, text). ALL document types supported.\n\n"
+                "SPREADSHEET EXAMPLES (Excel/CSV):\n"
+                "Set cell: {\"type\": \"set_cell\", \"sheet\": \"Sheet1\", \"row\": 5, \"col\": 3, \"value\": \"Data\"}\n"
+                "Add row: {\"type\": \"append_row\", \"sheet\": \"Sheet1\", \"values\": [\"Name\", \"Age\"]}\n"
+                "Fill column: {\"type\": \"set_column\", \"sheet\": \"Sheet1\", \"col\": \"B\", \"start_row\": 2, \"values\": [10, 20]}\n\n"
+                "PDF EXAMPLES:\n"
+                "Add page: {\"type\": \"add_page\", \"title\": \"Page Title\", \"content\": \"Page content\"}\n"
+                "Add paragraph: {\"type\": \"add_paragraph\", \"text\": \"Paragraph text\", \"font_size\": 12}\n"
+                "Add text: {\"type\": \"add_text\", \"text\": \"Text content\", \"font_size\": 14}\n\n"
+                "Multiple operations - use array:\n"
+                "[{\"type\": \"add_page\", \"title\": \"Intro\"}, {\"type\": \"add_paragraph\", \"text\": \"Content\"}]"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -68,7 +80,7 @@ TOOLS = [
                     },
                     "operations": {
                         "type": "string",
-                        "description": "JSON string of operation(s) to perform. Single object or array of objects."
+                        "description": "JSON string of operation(s). Single object or array of objects. Must be valid JSON."
                     }
                 },
                 "required": ["file_path", "operations"]
@@ -128,13 +140,33 @@ class ChatSession:
                     "- Use bash tool for file/system operations (create files, list directories, git commands, etc.)\n"
                     "- Use read_document tool to read PDF, Word, Excel, CSV, and text/code files - DO NOT verify file existence with ls first, just read it directly\n"
                     "- Use edit_code tool to modify source code files (.py, .js, .java, etc.) - shows a diff for user approval\n"
-                    "- Use write_document tool for Office documents (Word, Excel, PowerPoint)\n"
+                    "- Use write_document tool for ALL document types (Word, Excel, PowerPoint, CSV, PDF, text)\n"
                     "- For general knowledge questions, answer directly with text - DO NOT use bash to echo answers\n\n"
                     "Code editing workflow:\n"
                     "1. Read the file with read_document\n"
                     "2. Identify the section to change\n"
                     "3. Use edit_code with exact old_content and new_content\n"
                     "4. The diff will be shown to user for approval\n\n"
+                    "Spreadsheet editing workflow (Excel .xlsx, CSV .csv):\n"
+                    "1. ALWAYS read the file first with read_document to see current structure\n"
+                    "2. Identify what needs to change (which rows, columns, cells)\n"
+                    "3. Use write_document with JSON operations\n"
+                    "4. Common operations:\n"
+                    "   - Set specific cell: {\"type\": \"set_cell\", \"sheet\": \"Sheet1\", \"row\": 2, \"col\": \"A\", \"value\": \"Data\"}\n"
+                    "   - Add new row: {\"type\": \"append_row\", \"sheet\": \"Sheet1\", \"values\": [\"col1\", \"col2\", \"col3\"]}\n"
+                    "   - Fill column: {\"type\": \"set_column\", \"sheet\": \"Sheet1\", \"col\": \"B\", \"start_row\": 2, \"values\": [10, 20, 30]}\n"
+                    "5. For CSV files, omit the \"sheet\" parameter\n"
+                    "6. Multiple operations can be combined in an array: [{...}, {...}]\n"
+                    "7. Columns can be letters (\"A\", \"M\") or numbers (1, 13)\n"
+                    "8. Rows are 1-indexed (row 1 is first row)\n\n"
+                    "PDF editing workflow (.pdf):\n"
+                    "1. PDFs can be created and edited with write_document\n"
+                    "2. Common operations:\n"
+                    "   - Add page with title and content: {\"type\": \"add_page\", \"title\": \"Page Title\", \"content\": \"Content\"}\n"
+                    "   - Add paragraph: {\"type\": \"add_paragraph\", \"text\": \"Text content\", \"font_size\": 12}\n"
+                    "   - Add text: {\"type\": \"add_text\", \"text\": \"Text\", \"font_size\": 14}\n"
+                    "3. Multiple pages/paragraphs can be combined in an array\n"
+                    "4. PDFs are built sequentially - operations are applied in order\n\n"
                     "Git operations (use bash tool - all require user approval via permission prompt):\n"
                     "- Read-only operations (safe to suggest): git status, git log, git diff, git show, git branch\n"
                     "- Local operations (safe to suggest): git add, git commit, git checkout -b, git merge\n"
@@ -142,7 +174,9 @@ class ChatSession:
                     "- After making local commits, remind user they can push when ready, don't run push automatically\n\n"
                     "File operations:\n"
                     "- When user mentions a filename, read it directly with read_document - don't use ls or find to verify it exists first\n"
-                    "- Use 'touch filename' to create empty files unless content is explicitly requested\n"
+                    "- Use bash 'touch filename' to create empty text files only\n"
+                    "- NEVER try to create empty document files (Excel, Word, PowerPoint, PDF) with touch - they need proper structure\n"
+                    "- To create new document files, use write_document with operations (it will create the file with proper structure)\n"
                     "- Multi-file search: use bash with grep -r, find, or other search tools\n\n"
                     "Language:\n"
                     "- Always respond in English unless the user writes to you in another language\n\n"

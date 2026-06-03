@@ -47,14 +47,13 @@ pip install -e ".[dev]"
 # Run Slice
 slice
 
-# Run tests
-pytest
-
 # Format code (line-length 100, target py39)
 black src/
 
 # Lint code (line-length 100, target py39)
 ruff check src/
+
+# Note: Tests directory doesn't exist yet - pytest infrastructure is configured but tests not yet written
 ```
 
 ## Key Architecture Principles
@@ -75,7 +74,7 @@ Slice uses Ollama's function/tool calling feature. Models that support tools rec
 **Available Tools:**
 1. **bash** - Execute shell commands (file operations, git, search, etc.)
 2. **read_document** - Read PDF, Word (.docx), Excel (.xlsx), CSV, text files
-3. **write_document** - Write Word, Excel, PowerPoint, CSV, text with JSON operations
+3. **write_document** - Write Word, Excel, PowerPoint, PDF, CSV, text with JSON operations
 4. **edit_code** - Edit source code files with diff preview and approval
 
 **Tool-capable models:** llama3.x, mistral, gemma, gemma2, gemma4, command-r, qwen, qwen2
@@ -184,10 +183,9 @@ All operations are restricted to the directory where `slice` was started.
 - **Word (.docx)** - append_paragraph, replace_text, insert_after
 - **Excel (.xlsx)** - set_cell, append_row, set_column
 - **PowerPoint (.pptx)** - add_slide
+- **PDF (.pdf)** - add_page, add_paragraph, add_text
 - **CSV (.csv)** - append_row, set_cell
 - **Text files** - replace_content, append_text
-
-**PDF is read-only** - cannot write to PDF files.
 
 ### Operation Examples
 
@@ -204,6 +202,11 @@ All operations are restricted to the directory where `slice` was started.
 
 # PowerPoint operations
 {"type": "add_slide", "title": "Title", "content": "Content"}
+
+# PDF operations
+{"type": "add_page", "title": "Page Title", "content": "Page content"}
+{"type": "add_paragraph", "text": "Paragraph text", "font_size": 12}
+{"type": "add_text", "text": "Text content", "font_size": 14}
 
 # CSV operations
 {"type": "append_row", "values": ["col1", "col2", "col3"]}
@@ -238,7 +241,27 @@ The system message in `chat.py` guides model behavior:
 - Use bash for file/system operations, NOT for echoing knowledge answers
 - Use read_document directly without ls/find verification first
 - Use edit_code for source code with diff workflow
-- Use write_document for Office documents
+- Use write_document for ALL document types (Word, Excel, PowerPoint, PDF, CSV, text)
+
+**Spreadsheet editing workflow (CRITICAL for model success):**
+1. **Always read first** - Use read_document to see current structure
+2. **Identify changes** - Determine which rows, columns, cells need updating
+3. **Use JSON operations** - Pass structured operations to write_document
+4. **Common patterns:**
+   - Set cell: `{"type": "set_cell", "sheet": "Sheet1", "row": 2, "col": "A", "value": "Data"}`
+   - Add row: `{"type": "append_row", "sheet": "Sheet1", "values": ["col1", "col2"]}`
+   - Fill column: `{"type": "set_column", "sheet": "Sheet1", "col": "B", "start_row": 2, "values": [10, 20]}`
+5. **CSV files** - Same operations but omit "sheet" parameter
+6. **Multiple operations** - Combine in array: `[{...}, {...}]`
+7. **Column references** - Use letters ("A", "M") or numbers (1, 13)
+8. **Row indexing** - 1-indexed (row 1 is first row)
+
+**PDF editing workflow:**
+- PDFs can be created and edited with write_document tool
+- Common operations: add_page, add_paragraph, add_text
+- Use read_document to read existing PDFs
+- PDFs are built sequentially - operations applied in order
+- Example: `{"type": "add_page", "title": "Report", "content": "Summary text"}`
 
 **Git operation rules:**
 - Read-only: safe to suggest (status, log, diff, show, branch)
@@ -248,7 +271,9 @@ The system message in `chat.py` guides model behavior:
 
 **File operation rules:**
 - When user mentions filename, read directly - don't verify existence first
-- Use `touch filename` for empty files
+- Use bash `touch filename` for empty text files only
+- **Never** use touch for document files (Excel, Word, PowerPoint, PDF) - they need proper structure
+- To create new document files, use write_document with operations (it will create the file)
 - Multi-file search: bash with grep -r or find
 
 ## Testing Local Ollama Models
@@ -300,6 +325,14 @@ ollama pull llama3.1
    - gemma4, mistral, qwen2 better at distinguishing chat vs. actions
    - Tool support auto-detected, but some models hallucinate unsupported tools
 
+7. **Spreadsheet operation confusion (common with smaller models)**
+   - Models struggle if they don't read the file first
+   - JSON operations must be valid and properly escaped
+   - Column references can be letters OR numbers - both work
+   - For CSV, omit the "sheet" parameter entirely
+   - The tool description now includes concrete examples to guide models
+   - System message includes step-by-step workflow for spreadsheet editing
+
 ## Key Dependencies
 
 ```toml
@@ -308,6 +341,7 @@ rich>=13.0.0              # Terminal UI
 ollama>=0.1.0             # Ollama API client
 prompt-toolkit>=3.0.0     # Interactive prompts
 pypdf>=4.0.0              # PDF reading
+reportlab>=4.0.0          # PDF writing
 python-docx>=1.0.0        # Word documents
 openpyxl>=3.0.0           # Excel spreadsheets
 python-pptx>=0.6.0        # PowerPoint presentations
@@ -321,7 +355,13 @@ ruff>=0.1.0               # Linter (line-length 100)
 
 ## Version History
 
-- **v1.1.0** - Current version, pure Python architecture
+- **v1.2.0** - Current version, full document editing support
+  - Added PDF writing capability (reportlab)
+  - ALL document types now editable (PDF, Word, Excel, PowerPoint, CSV, text)
+  - Enhanced spreadsheet operation guidance for better model success
+  - Removed read-only PDF restriction
+  
+- **v1.1.0** - Pure Python architecture
   - Removed Go hybrid architecture
   - Added code editing with diffs (edit_code tool)
   - Improved model switching with history preservation
