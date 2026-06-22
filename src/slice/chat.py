@@ -172,8 +172,15 @@ class ChatSession:
                     "- Local operations (safe to suggest): git add, git commit, git checkout -b, git merge\n"
                     "- Remote operations: NEVER suggest git push or git pull unless user EXPLICITLY asks in their message\n"
                     "- After making local commits, remind user they can push when ready, don't run push automatically\n\n"
+                    "File format conversion (Excel/CSV to JSON) - IMPORTANT:\n"
+                    "- When user asks to convert Excel/CSV to JSON, DO NOT read the file first\n"
+                    "- Excel to JSON: use bash with python3 -c \"import pandas as pd; pd.read_excel('input.xlsx').to_json('output.json', orient='records', indent=2)\"\n"
+                    "- CSV to JSON: use bash with python3 -c \"import pandas as pd; pd.read_csv('input.csv').to_json('output.json', orient='records', indent=2)\"\n"
+                    "- This works for files of any size and handles all formatting automatically\n"
+                    "- For JSON files, treat them as text files with write_document using replace_content operation\n\n"
                     "File operations:\n"
-                    "- When user mentions a filename, read it directly with read_document - don't use ls or find to verify it exists first\n"
+                    "- When user asks about file content (not conversion), read it directly with read_document\n"
+                    "- Don't use ls or find to verify files exist before reading them\n"
                     "- Use bash 'touch filename' to create empty text files only\n"
                     "- NEVER try to create empty document files (Excel, Word, PowerPoint, PDF) with touch - they need proper structure\n"
                     "- To create new document files, use write_document with operations (it will create the file with proper structure)\n"
@@ -390,9 +397,12 @@ class ChatSession:
                         if first_chunk:
                             live.stop()
                             first_chunk = False
-                        # Print with syntax highlighting but no markup interpretation
-                        console.print(content, end="", markup=False)
-                        response_text += content
+                        # Filter out <tool_call> tags that some models emit
+                        if "<tool_call>" not in content and "</tool_call>" not in content:
+                            # Print with syntax highlighting but no markup interpretation
+                            console.print(content, end="", markup=False)
+                            response_text += content
+                        # If content has tool_call tags, still need to stop spinner but don't print/save
 
                 # Make sure spinner is stopped
                 if live.is_started:
@@ -436,8 +446,10 @@ class ChatSession:
                             break
                         content = chunk.get("message", {}).get("content", "")
                         if content:
-                            console.print(content, end="", markup=False)
-                            response_text += content
+                            # Filter out <tool_call> tags that some models emit
+                            if "<tool_call>" not in content and "</tool_call>" not in content:
+                                console.print(content, end="", markup=False)
+                                response_text += content
 
                     console.print()  # Newline
 
@@ -498,7 +510,7 @@ class ChatSession:
                                 with Live(
                                     Spinner("dots", text=f"[cyan]reading {file_path}...[/cyan]"),
                                     console=console,
-                                    transient=False  # Keep visible
+                                    transient=True  # Clean up after completion
                                 ) as read_live:
                                     result = self._read_document(file_path)
                                     read_live.stop()
@@ -529,12 +541,16 @@ class ChatSession:
                                 with Live(
                                     Spinner("dots", text=f"[cyan]writing {file_path}...[/cyan]"),
                                     console=console,
-                                    transient=False  # Keep visible
+                                    transient=True  # Clean up after completion
                                 ) as write_live:
                                     result = self._write_document(file_path, operations)
                                     write_live.stop()
 
-                                console.print(f"[green]✓ Document updated[/green]\n")
+                                # Show success or error based on result
+                                if result.startswith("Error:"):
+                                    console.print(f"[red]✗ {result}[/red]\n")
+                                else:
+                                    console.print(f"[green]✓ Document updated[/green]\n")
 
                                 # Check for interrupt after write
                                 if self.interrupted:
@@ -591,11 +607,12 @@ class ChatSession:
                     with Live(
                         Spinner("dots", text="[cyan]baking...[/cyan]"),
                         console=console,
-                        transient=False  # Keep visible
+                        transient=True  # Clean up after completion
                     ) as final_live:
                         final_stream = ollama.chat(
                             model=self.model_name,
                             messages=self.conversation_history,
+                            tools=TOOLS,  # Include tools so model knows context
                             stream=True
                         )
 
@@ -619,8 +636,11 @@ class ChatSession:
                                     final_live.stop()
                                     first_chunk = False
 
-                                console.print(content, end="", markup=False)
-                                final_text += content
+                                # Filter out <tool_call> tags that some models emit
+                                if "<tool_call>" not in content and "</tool_call>" not in content:
+                                    console.print(content, end="", markup=False)
+                                    final_text += content
+                                # If content has tool_call tags, still need to stop spinner but don't print/save
 
                         # Make sure spinner is stopped
                         if final_live.is_started:
