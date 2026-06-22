@@ -12,11 +12,15 @@ Slice is a beautiful terminal IDE that wraps local Ollama models with practical 
 
 ## 🆕 What's New in v1.3.0
 
-- **🔄 Excel/CSV to JSON Conversion** - Seamless file format conversion using pandas (included as dependency)
+- **🔄 Universal File to JSON Conversion** - Convert Excel, CSV, Word, and PDF files to JSON seamlessly
+  - Excel/CSV use pandas for tabular data conversion
+  - Word documents extract paragraphs using python-docx
+  - PDF files extract pages using pypdf
+  - All conversions happen directly via bash - no manual reading required
 - **🐛 Fixed UI Issues** - Removed `<tool_call>` tags appearing in model output
 - **💬 Better Tool Response** - Fixed models not responding after reading documents
 - **⚠️ Improved Error Messages** - Clear feedback when write operations fail
-- **🎯 Optimized Conversion Workflow** - Models now skip unnecessary reads during format conversion
+- **🎯 Optimized Conversion Workflow** - Models skip unnecessary reads during format conversion
 - **🧹 Cleaner UI** - All spinners properly clean up after completion
 
 ### Previous Updates (v1.2.0)
@@ -143,6 +147,15 @@ Shows a syntax-highlighted diff for your approval before applying changes.
 🍕 read contract.pdf and extract the key terms into a spreadsheet
 ```
 Read/write ANY document type - PDF, Excel, Word, CSV, Markdown, etc.
+
+**File format conversion:**
+```
+🍕 convert budget.xlsx to budget.json
+🍕 convert report.docx to report.json
+🍕 convert contract.pdf to contract.json
+🍕 convert data.csv to data.json
+```
+Seamlessly convert Excel, Word, PDF, and CSV files to JSON format.
 
 **Git workflows:**
 ```
