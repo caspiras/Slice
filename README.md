@@ -10,13 +10,21 @@
 
 Slice is a beautiful terminal IDE that wraps local Ollama models with practical coding tools. Built with **Python** and the **Rich** library, it provides streaming chat, code editing with diffs, document operations, and git integration - all sandboxed to your project directory.
 
-## 🆕 What's New in v1.2.0
+## 🆕 What's New in v1.3.0
 
-- **📝 PDF Writing Enabled** - Create and edit PDFs directly! No more read-only limitation
-- **📊 Enhanced Spreadsheet Support** - Improved tool guidance for better Excel/CSV editing with all models
-- **🔄 Universal Document Editing** - ALL file types in your directory are now editable (PDF, Word, Excel, PowerPoint, CSV, Markdown, code files, etc.)
-- **🎯 Better Model Guidance** - Concrete JSON operation examples help models succeed with document operations
-- **⚡ Cross-Format Operations** - Easily move data between formats (PDF→Excel, Word→Markdown, etc.)
+- **🔄 Excel/CSV to JSON Conversion** - Seamless file format conversion using pandas (included as dependency)
+- **🐛 Fixed UI Issues** - Removed `<tool_call>` tags appearing in model output
+- **💬 Better Tool Response** - Fixed models not responding after reading documents
+- **⚠️ Improved Error Messages** - Clear feedback when write operations fail
+- **🎯 Optimized Conversion Workflow** - Models now skip unnecessary reads during format conversion
+- **🧹 Cleaner UI** - All spinners properly clean up after completion
+
+### Previous Updates (v1.2.0)
+
+- **📝 PDF Writing Enabled** - Create and edit PDFs directly
+- **📊 Enhanced Spreadsheet Support** - Improved tool guidance for better Excel/CSV editing
+- **🔄 Universal Document Editing** - ALL file types editable (PDF, Word, Excel, PowerPoint, CSV, Markdown, code)
+- **⚡ Cross-Format Operations** - Move data between formats (PDF→Excel, Word→Markdown, etc.)
 
 ## What It Does
 

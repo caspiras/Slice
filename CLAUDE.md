@@ -345,6 +345,7 @@ reportlab>=4.0.0          # PDF writing
 python-docx>=1.0.0        # Word documents
 openpyxl>=3.0.0           # Excel spreadsheets
 python-pptx>=0.6.0        # PowerPoint presentations
+pandas>=2.0.0             # File format conversion (Excel/CSV to JSON)
 
 # Dev dependencies
 pytest>=7.0.0
@@ -355,7 +356,16 @@ ruff>=0.1.0               # Linter (line-length 100)
 
 ## Version History
 
-- **v1.2.0** - Current version, full document editing support
+- **v1.3.0** - Current version, enhanced file conversion and UI fixes
+  - Added pandas dependency for seamless Excel/CSV to JSON conversion
+  - Fixed `<tool_call>` tags appearing in model output
+  - Fixed models not responding after read_document tool calls
+  - Improved error messages for failed write operations
+  - Optimized system message to prevent unnecessary file reads during conversion
+  - Fixed all spinners to properly clean up (transient=True)
+  - Updated banner with improved tips (Ctrl+C behavior, Ctrl+Z info)
+
+- **v1.2.0** - Full document editing support
   - Added PDF writing capability (reportlab)
   - ALL document types now editable (PDF, Word, Excel, PowerPoint, CSV, text)
   - Enhanced spreadsheet operation guidance for better model success
