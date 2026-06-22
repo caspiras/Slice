@@ -356,8 +356,12 @@ ruff>=0.1.0               # Linter (line-length 100)
 
 ## Version History
 
-- **v1.3.0** - Current version, enhanced file conversion and UI fixes
-  - Added pandas dependency for seamless Excel/CSV to JSON conversion
+- **v1.3.0** - Current version, universal file-to-JSON conversion and UI fixes
+  - Added universal file-to-JSON conversion support (Excel, CSV, Word, PDF)
+  - Excel/CSV use pandas for tabular data conversion
+  - Word documents use python-docx to extract paragraphs
+  - PDF files use pypdf to extract pages
+  - All conversions via direct bash commands (no read step required)
   - Fixed `<tool_call>` tags appearing in model output
   - Fixed models not responding after read_document tool calls
   - Improved error messages for failed write operations
