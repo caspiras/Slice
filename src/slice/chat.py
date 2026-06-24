@@ -115,6 +115,27 @@ TOOLS = [
                 "required": ["file_path", "old_content", "new_content", "description"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "convert_to_json",
+            "description": "Convert document files to JSON format efficiently (handles large files). Supports Excel (.xlsx), CSV (.csv), Word (.docx with tables), and PDF (.pdf). Uses chunking/streaming to avoid memory issues.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "input_file": {
+                        "type": "string",
+                        "description": "Path to the input file to convert"
+                    },
+                    "output_file": {
+                        "type": "string",
+                        "description": "Path where the JSON output should be saved"
+                    }
+                },
+                "required": ["input_file", "output_file"]
+            }
+        }
     }
 ]
 
@@ -172,12 +193,14 @@ class ChatSession:
                     "- Local operations (safe to suggest): git add, git commit, git checkout -b, git merge\n"
                     "- Remote operations: NEVER suggest git push or git pull unless user EXPLICITLY asks in their message\n"
                     "- After making local commits, remind user they can push when ready, don't run push automatically\n\n"
-                    "File format conversion to JSON - IMPORTANT (DO NOT read files first):\n"
-                    "- Excel to JSON: bash with python3 -c \"import pandas as pd; pd.read_excel('input.xlsx').to_json('output.json', orient='records', indent=2)\"\n"
-                    "- CSV to JSON: bash with python3 -c \"import pandas as pd; pd.read_csv('input.csv').to_json('output.json', orient='records', indent=2)\"\n"
-                    "- Word to JSON: bash with python3 -c \"from docx import Document; import json; doc = Document('input.docx'); json.dump({'paragraphs': [p.text for p in doc.paragraphs]}, open('output.json', 'w'), indent=2)\"\n"
-                    "- PDF to JSON: bash with python3 -c \"from pypdf import PdfReader; import json; reader = PdfReader('input.pdf'); json.dump({'pages': [page.extract_text() for page in reader.pages]}, open('output.json', 'w'), indent=2)\"\n"
-                    "- All conversions use direct bash commands - DO NOT use read_document first\n"
+                    "File format conversion to JSON - Use convert_to_json tool:\n"
+                    "- Use convert_to_json for Excel (.xlsx), CSV (.csv), Word (.docx), and PDF (.pdf) files\n"
+                    "- This tool handles large files efficiently with chunking/streaming to avoid memory errors\n"
+                    "- Word documents: Extracts BOTH paragraphs AND tables (tables were missing before!)\n"
+                    "- CSV files: Uses chunking for large files (processes 10k rows at a time)\n"
+                    "- Excel files: Converts all rows to JSON array format\n"
+                    "- PDF files: Extracts text page-by-page to avoid memory issues\n"
+                    "- Example: convert_to_json with input_file='data.xlsx' and output_file='data.json'\n"
                     "- For JSON files, treat them as text files with write_document using replace_content operation\n\n"
                     "File operations:\n"
                     "- When user asks about file content (not conversion), read it directly with read_document\n"
@@ -331,6 +354,131 @@ class ChatSession:
 
         except Exception as e:
             return f"Error editing file: {str(e)}"
+
+    def _convert_to_json(self, input_file: str, output_file: str) -> str:
+        """Convert document files to JSON format with chunking for large files."""
+        import os
+        from pathlib import Path
+
+        # Resolve paths relative to safe directory
+        input_path = os.path.join(self.safe_directory, input_file)
+        output_path = os.path.join(self.safe_directory, output_file)
+
+        if not os.path.exists(input_path):
+            return f"Error: Input file not found: {input_file}"
+
+        suffix = Path(input_path).suffix.lower()
+
+        try:
+            if suffix == '.xlsx':
+                return self._convert_excel_to_json(input_path, output_path)
+            elif suffix == '.csv':
+                return self._convert_csv_to_json(input_path, output_path)
+            elif suffix == '.docx':
+                return self._convert_word_to_json(input_path, output_path)
+            elif suffix == '.pdf':
+                return self._convert_pdf_to_json(input_path, output_path)
+            else:
+                return f"Error: Unsupported file type: {suffix}. Supported: .xlsx, .csv, .docx, .pdf"
+        except Exception as e:
+            return f"Error converting {input_file} to JSON: {str(e)}"
+
+    def _convert_excel_to_json(self, input_path: str, output_path: str) -> str:
+        """Convert Excel file to JSON."""
+        import pandas as pd
+        import json
+
+        df = pd.read_excel(input_path, engine='openpyxl')
+        result = df.to_dict(orient='records')
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False, default=str)
+
+        return f"Successfully converted {len(result)} rows from Excel to JSON: {output_path}"
+
+    def _convert_csv_to_json(self, input_path: str, output_path: str) -> str:
+        """Convert CSV file to JSON with chunking for large files."""
+        import pandas as pd
+        import json
+
+        # Read in chunks to handle large files
+        chunk_size = 10000
+        chunks = []
+
+        for chunk in pd.read_csv(input_path, chunksize=chunk_size, encoding='utf-8'):
+            chunks.append(chunk)
+
+        # Combine all chunks
+        df = pd.concat(chunks, ignore_index=True)
+        result = df.to_dict(orient='records')
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False, default=str)
+
+        return f"Successfully converted {len(result)} rows from CSV to JSON: {output_path}"
+
+    def _convert_word_to_json(self, input_path: str, output_path: str) -> str:
+        """Convert Word document to JSON, including tables."""
+        from docx import Document
+        import json
+
+        doc = Document(input_path)
+        result = {
+            'paragraphs': [],
+            'tables': []
+        }
+
+        # Extract paragraphs and tables in order
+        for element in doc.element.body:
+            if element.tag.endswith('p'):
+                for para in doc.paragraphs:
+                    if para._element == element:
+                        text = para.text.strip()
+                        if text:
+                            result['paragraphs'].append(text)
+                        break
+            elif element.tag.endswith('tbl'):
+                for table in doc.tables:
+                    if table._element == element:
+                        table_data = []
+                        for row in table.rows:
+                            row_data = [cell.text.strip() for cell in row.cells]
+                            if any(row_data):
+                                table_data.append(row_data)
+                        if table_data:
+                            result['tables'].append(table_data)
+                        break
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+
+        return f"Successfully converted Word document to JSON: {len(result['paragraphs'])} paragraphs, {len(result['tables'])} tables → {output_path}"
+
+    def _convert_pdf_to_json(self, input_path: str, output_path: str) -> str:
+        """Convert PDF to JSON, processing page by page."""
+        from pypdf import PdfReader
+        import json
+
+        reader = PdfReader(input_path)
+        result = {
+            'pages': [],
+            'metadata': {
+                'page_count': len(reader.pages)
+            }
+        }
+
+        # Process pages one at a time to avoid memory issues
+        for page_num, page in enumerate(reader.pages, start=1):
+            page_text = page.extract_text()
+            result['pages'].append({
+                'page_number': page_num,
+                'text': page_text
+            })
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+
+        return f"Successfully converted {len(result['pages'])} pages from PDF to JSON: {output_path}"
 
     def process_stream(self, user_input: str):
         """
@@ -579,6 +727,41 @@ class ChatSession:
                                 result = self._edit_code(file_path, old_content, new_content, description)
 
                                 # Check for interrupt after edit
+                                if self.interrupted:
+                                    if old_handler:
+                                        signal.signal(signal.SIGINT, old_handler)
+                                    return False
+
+                                # Add tool result to history
+                                self.conversation_history.append({
+                                    "role": "tool",
+                                    "content": result
+                                })
+
+                            elif name == "convert_to_json":
+                                input_file = arguments.get("input_file", "")
+                                output_file = arguments.get("output_file", "")
+
+                                if not input_file or not output_file:
+                                    console.print("[red]Error: Model provided incomplete parameters[/red]")
+                                    continue
+
+                                # Show spinner while converting (can take time for large files)
+                                with Live(
+                                    Spinner("dots", text=f"[cyan]converting {input_file} to JSON...[/cyan]"),
+                                    console=console,
+                                    transient=True
+                                ) as convert_live:
+                                    result = self._convert_to_json(input_file, output_file)
+                                    convert_live.stop()
+
+                                # Show success or error based on result
+                                if result.startswith("Error:"):
+                                    console.print(f"[red]✗ {result}[/red]\n")
+                                else:
+                                    console.print(f"[green]✓ {result}[/green]\n")
+
+                                # Check for interrupt after conversion
                                 if self.interrupted:
                                     if old_handler:
                                         signal.signal(signal.SIGINT, old_handler)

@@ -10,20 +10,29 @@
 
 Slice is a beautiful terminal IDE that wraps local Ollama models with practical coding tools. Built with **Python** and the **Rich** library, it provides streaming chat, code editing with diffs, document operations, and git integration - all sandboxed to your project directory.
 
-## 🆕 What's New in v1.3.0
+## 🆕 What's New in v1.3.1
+
+- **📊 Word Document Table Extraction** - Tables in Word documents are now extracted alongside paragraphs
+  - Fixes missing table data when reading .docx files
+  - Tables appear in document flow with row-by-row formatting
+  - Word-to-JSON conversion now includes both paragraphs AND tables
+- **🚀 Large File Support** - New `convert_to_json` tool handles massive files efficiently
+  - CSV files processed in 10k row chunks to avoid memory errors
+  - Excel, PDF, and Word files use streaming/chunking
+  - No more timeouts or crashes on large file conversions
+- **🔧 New Tool: convert_to_json** - Dedicated file format conversion tool
+  - Replaces error-prone bash one-liners
+  - Proper error handling and progress feedback
+  - Supports .xlsx, .csv, .docx (with tables!), .pdf
+
+### Previous Updates (v1.3.0)
 
 - **🔄 Universal File to JSON Conversion** - Convert Excel, CSV, Word, and PDF files to JSON seamlessly
-  - Excel/CSV use pandas for tabular data conversion
-  - Word documents extract paragraphs using python-docx
-  - PDF files extract pages using pypdf
-  - All conversions happen directly via bash - no manual reading required
 - **🐛 Fixed UI Issues** - Removed `<tool_call>` tags appearing in model output
 - **💬 Better Tool Response** - Fixed models not responding after reading documents
-- **⚠️ Improved Error Messages** - Clear feedback when write operations fail
-- **🎯 Optimized Conversion Workflow** - Models skip unnecessary reads during format conversion
 - **🧹 Cleaner UI** - All spinners properly clean up after completion
 
-### Previous Updates (v1.2.0)
+### v1.2.0
 
 - **📝 PDF Writing Enabled** - Create and edit PDFs directly
 - **📊 Enhanced Spreadsheet Support** - Improved tool guidance for better Excel/CSV editing

@@ -69,13 +69,14 @@ ruff check src/
 
 ### 2. Tool-Based Model Interaction
 
-Slice uses Ollama's function/tool calling feature. Models that support tools receive 4 tool definitions:
+Slice uses Ollama's function/tool calling feature. Models that support tools receive 5 tool definitions:
 
 **Available Tools:**
 1. **bash** - Execute shell commands (file operations, git, search, etc.)
-2. **read_document** - Read PDF, Word (.docx), Excel (.xlsx), CSV, text files
+2. **read_document** - Read PDF, Word (.docx with tables!), Excel (.xlsx), CSV, text files
 3. **write_document** - Write Word, Excel, PowerPoint, PDF, CSV, text with JSON operations
 4. **edit_code** - Edit source code files with diff preview and approval
+5. **convert_to_json** - Convert Excel, CSV, Word (with tables), PDF to JSON efficiently
 
 **Tool-capable models:** llama3.x, mistral, gemma, gemma2, gemma4, command-r, qwen, qwen2
 
@@ -356,16 +357,23 @@ ruff>=0.1.0               # Linter (line-length 100)
 
 ## Version History
 
-- **v1.3.0** - Current version, universal file-to-JSON conversion and UI fixes
+- **v1.3.1** - Current version, large file support and table extraction
+  - **NEW TOOL:** Added `convert_to_json` tool for reliable file format conversion
+  - Fixed Word document reader to extract tables alongside paragraphs (was missing tables!)
+  - Word-to-JSON conversion now includes both paragraphs AND tables
+  - Large file support: CSV files processed in 10k row chunks to avoid memory errors
+  - Excel, PDF, and Word conversions use chunking/streaming for large files
+  - No more timeouts or memory errors on large file conversions
+  - Replaces error-prone bash one-liners with proper error handling
+
+- **v1.3.0** - Universal file-to-JSON conversion and UI fixes
   - Added universal file-to-JSON conversion support (Excel, CSV, Word, PDF)
   - Excel/CSV use pandas for tabular data conversion
-  - Word documents use python-docx to extract paragraphs
+  - Word documents use python-docx to extract paragraphs (tables were missing - fixed in v1.3.1)
   - PDF files use pypdf to extract pages
-  - All conversions via direct bash commands (no read step required)
   - Fixed `<tool_call>` tags appearing in model output
   - Fixed models not responding after read_document tool calls
   - Improved error messages for failed write operations
-  - Optimized system message to prevent unnecessary file reads during conversion
   - Fixed all spinners to properly clean up (transient=True)
   - Updated banner with improved tips (Ctrl+C behavior, Ctrl+Z info)
 

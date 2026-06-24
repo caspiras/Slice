@@ -112,7 +112,7 @@ def _read_pdf(path: Path) -> str:
 
 
 def _read_docx(path: Path) -> str:
-    """Read text content from a Word document."""
+    """Read text content from a Word document, including tables."""
     try:
         from docx import Document
     except ImportError:
@@ -122,12 +122,49 @@ def _read_docx(path: Path) -> str:
         )
 
     doc = Document(path)
-    paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+    content = []
 
-    if not paragraphs:
+    # Extract both paragraphs and tables in document order
+    for element in doc.element.body:
+        # Check if it's a paragraph
+        if element.tag.endswith('p'):
+            # Find the corresponding paragraph object
+            for para in doc.paragraphs:
+                if para._element == element:
+                    text = para.text.strip()
+                    if text:
+                        content.append(text)
+                    break
+
+        # Check if it's a table
+        elif element.tag.endswith('tbl'):
+            # Find the corresponding table object
+            for table in doc.tables:
+                if table._element == element:
+                    table_text = _format_docx_table(table)
+                    if table_text:
+                        content.append(table_text)
+                    break
+
+    if not content:
         return "(No text content could be extracted from this Word document)"
 
-    return "\n\n".join(paragraphs)
+    return "\n\n".join(content)
+
+
+def _format_docx_table(table) -> str:
+    """Format a Word table as readable text."""
+    rows_text = []
+    rows_text.append("--- Table ---")
+
+    for row_idx, row in enumerate(table.rows):
+        cells = [cell.text.strip() for cell in row.cells]
+        # Only include rows with at least one non-empty cell
+        if any(cells):
+            row_text = " | ".join(cells)
+            rows_text.append(f"Row {row_idx + 1}: {row_text}")
+
+    return "\n".join(rows_text) if len(rows_text) > 1 else ""
 
 
 def _read_excel(path: Path) -> str:
