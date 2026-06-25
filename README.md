@@ -10,16 +10,24 @@
 
 Slice is a beautiful terminal IDE that wraps local Ollama models with practical coding tools. Built with **Python** and the **Rich** library, it provides streaming chat, code editing with diffs, document operations, and git integration - all sandboxed to your project directory.
 
-## 🆕 What's New in v1.3.2
+## 🆕 What's New in v1.4.0
+
+- **🎯 Enhanced Model Behavior** - Major improvements to tool calling across models
+  - Fixed critical system message issues preventing models from using tools correctly
+  - Models now properly create Python apps with bash (not write_document)
+  - Better tool calling behavior for gemma4, granite4, and other models
+  - Added explicit guidance for creating executable files
+  - Improved sequential tool execution (create file → run file)
+  - Note: llama3.1 8B has poor tool calling support; use gemma4 or granite4 instead
+
+### Previous Updates (v1.3.2)
 
 - **📝 Convert to Markdown** - New `convert_to_markdown` tool for document conversion
   - Convert Excel, CSV, Word (with tables), and PDF files to Markdown format
   - Tables automatically formatted with Markdown table syntax (| separators)
-  - Same large file handling as convert_to_json (chunking/streaming)
-  - Perfect for documentation workflows and version control
   - Example: `convert budget.xlsx to budget.md`
 
-### Previous Updates (v1.3.1)
+### v1.3.1
 
 - **📊 Word Document Table Extraction** - Tables in Word documents are now extracted alongside paragraphs
 - **🚀 Large File Support** - New `convert_to_json` tool handles massive files efficiently

@@ -2,6 +2,10 @@
 
 import ollama
 import signal
+import os
+import json
+import difflib
+from pathlib import Path
 from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner
@@ -31,7 +35,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "bash",
-            "description": "Execute a bash command for file/system operations (create files, list directories, run scripts). DO NOT use this to echo or print answers to knowledge questions - just respond with text instead.",
+            "description": "Execute bash commands. Use this to: create Python/JavaScript/shell script files (use 'cat > file.py << EOF'), run Python scripts (python3 file.py), list directories (ls), search files (grep), git operations. DO NOT use this to echo answers to knowledge questions.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -63,7 +67,9 @@ TOOLS = [
         "function": {
             "name": "write_document",
             "description": (
-                "Write to document files (Word, Excel, PowerPoint, CSV, PDF, text). ALL document types supported.\n\n"
+                "Write to OFFICE document files ONLY: Word (.docx), Excel (.xlsx), PowerPoint (.pptx), CSV (.csv), PDF (.pdf), text files.\n"
+                "DO NOT use this for Python/JavaScript code files - use bash tool instead.\n"
+                "DO NOT use this to create .app bundles - use bash to create .py files instead.\n\n"
                 "SPREADSHEET EXAMPLES (Excel/CSV):\n"
                 'Set cell: {"type": "set_cell", "sheet": "Sheet1", "row": 5, "col": 3, "value": "Data"}\n'
                 'Add row: {"type": "append_row", "sheet": "Sheet1", "values": ["Name", "Age"]}\n'
@@ -162,6 +168,10 @@ TOOLS = [
 class ChatSession:
     """Chat session with an Ollama model - clean IDE experience with tool execution."""
 
+    # Constants
+    MAX_DOCUMENT_CHARS = 100000  # ~100KB max for document content
+    CSV_CHUNK_SIZE = 10000  # Process CSV files in 10k row chunks
+
     def __init__(self, model_name: str, safe_directory: str):
         self.model_name = model_name
         self.safe_directory = safe_directory
@@ -176,6 +186,44 @@ class ChatSession:
                 "role": "system",
                 "content": (
                     "You are a helpful assistant with capabilities to read/write documents, edit code, and execute bash commands.\n\n"
+                    "CRITICAL - Creating Python/JavaScript Apps:\n"
+                    "When user asks to create a Python app (.py file):\n"
+                    "1. Use bash tool with: cat > filename.py << EOF\\n<code>\\nEOF\n"
+                    "2. Then use bash tool again with: python3 filename.py\n"
+                    "NEVER use write_document for .py files - it's only for Office documents (Word, Excel, PDF).\n"
+                    "NEVER try to create .app bundles - create .py files instead.\n"
+                    "ALWAYS create the file BEFORE trying to run it.\n\n"
+                    "CRITICAL - You have TOOLS that you must CALL, do NOT just talk about using them:\n"
+                    "- bash tool - Creates/runs Python/JS files, executes commands\n"
+                    "- read_document tool - Reads Office documents and text files\n"
+                    "- write_document tool - Writes Office documents ONLY (Word, Excel, PDF, PowerPoint, CSV)\n"
+                    "- edit_code tool - Edits existing source code files\n"
+                    "IMPORTANT: You can call MULTIPLE tools in a SINGLE response. For example, call bash twice to create and then run a file.\n\n"
+                    "CRITICAL - Action vs. Explanation:\n"
+                    "- When user asks you to CREATE, MAKE, BUILD, WRITE, RUN, or EXECUTE something → CALL THE TOOL NOW\n"
+                    "- 'Yes' or 'Y' or 'Sure' or 'OK' or 'Go ahead' → If context is running a file, CALL bash tool with 'python3 <filename>'\n"
+                    "- 'run the app' or 'execute X' or 'please run X' → CALL bash tool NOW with appropriate command\n"
+                    "- When user asks HOW to do something or WHAT is something → Only then explain with text\n\n"
+                    "CRITICAL - After Creating Executable Files:\n"
+                    "When user asks you to create an app/script (.py, .js, .sh files), respond with bash tool call to create AND run in sequence.\n"
+                    "After the creation tool call result comes back, your NEXT response should be ANOTHER bash tool call to run it.\n"
+                    "DO NOT respond with text after creating the file - immediately call bash again to run it.\n\n"
+                    "EXAMPLE CONVERSATION FLOW:\n"
+                    "User: 'create a Python app'\n"
+                    "Assistant: [calls bash tool: cat > app.py << EOF...]\n"
+                    "System: [returns result: Command executed successfully]\n"
+                    "Assistant: [calls bash tool again: python3 app.py] ← THIS IS YOUR RESPONSE, not text\n"
+                    "System: [returns result with output or error]\n"
+                    "Assistant: [NOW you can respond with text: Created and ran app.py]\n\n"
+                    "User: 'run the app' → You CALL bash tool with command 'python3 app.py'\n"
+                    "User: 'Yes' (when previous context was about running) → You CALL bash tool with 'python3 <filename>'\n\n"
+                    "WRONG BEHAVIOR - NEVER DO THIS:\n"
+                    "User: 'create an app' → You ONLY call bash('python3 app.py') without creating the file first ← WRONG! Create file FIRST, then run.\n"
+                    "User: 'create an app' → You call bash to create file, then WAIT. ← WRONG! Call bash AGAIN in the same response to run it.\n"
+                    "User: 'create an app' → You create file, then respond 'Created app.py. Would you like me to run it?' ← WRONG! Make the second bash call.\n"
+                    "User: 'Yes' → You respond: 'Running app.py' ← WRONG! You must CALL the bash tool!\n\n"
+                    "After executing a tool successfully, respond concisely - DO NOT explain the code or give instructions\n"
+                    "Default to ACTION (calling tools) when request is ambiguous - user can always deny the permission prompt\n\n"
                     "IMPORTANT - When to use tools:\n"
                     "- Use bash tool for file/system operations (create files, list directories, git commands, etc.)\n"
                     "- Use read_document tool to read PDF, Word, Excel, CSV, and text/code files - DO NOT verify file existence with ls first, just read it directly\n"
@@ -263,7 +311,6 @@ class ChatSession:
     def _read_document(self, file_path: str) -> str:
         """Read a document file."""
         from .document_reader import read_document
-        import os
 
         # Resolve path relative to safe directory
         full_path = os.path.join(self.safe_directory, file_path)
@@ -277,14 +324,13 @@ class ChatSession:
                 file_type = result.get("file_type", "unknown")
 
                 # Warn and truncate if content is very large
-                MAX_CHARS = 100000  # ~100KB of text
-                if len(content) > MAX_CHARS:
+                if len(content) > self.MAX_DOCUMENT_CHARS:
                     console.print(
-                        f"[yellow]⚠️  Large document ({len(content)} chars) - truncating to first {MAX_CHARS} chars[/yellow]"
+                        f"[yellow]⚠️  Large document ({len(content)} chars) - truncating to first {self.MAX_DOCUMENT_CHARS} chars[/yellow]"
                     )
                     content = (
-                        content[:MAX_CHARS]
-                        + f"\n\n[... truncated {len(content) - MAX_CHARS} additional characters ...]"
+                        content[:self.MAX_DOCUMENT_CHARS]
+                        + f"\n\n[... truncated {len(content) - self.MAX_DOCUMENT_CHARS} additional characters ...]"
                     )
 
                 return f"[{file_type} file content]\n{content}"
@@ -299,8 +345,6 @@ class ChatSession:
     def _write_document(self, file_path: str, operations: str) -> str:
         """Write to a document file."""
         from .document_writer import write_document
-        import os
-        import json
 
         # Resolve path relative to safe directory
         full_path = os.path.join(self.safe_directory, file_path)
@@ -329,9 +373,6 @@ class ChatSession:
         self, file_path: str, old_content: str, new_content: str, description: str
     ) -> str:
         """Edit a code file with diff preview and user approval."""
-        import os
-        import difflib
-
         # Resolve path relative to safe directory
         full_path = os.path.join(self.safe_directory, file_path)
 
@@ -388,9 +429,6 @@ class ChatSession:
 
     def _convert_to_json(self, input_file: str, output_file: str) -> str:
         """Convert document files to JSON format with chunking for large files."""
-        import os
-        from pathlib import Path
-
         # Resolve paths relative to safe directory
         input_path = os.path.join(self.safe_directory, input_file)
         output_path = os.path.join(self.safe_directory, output_file)
@@ -419,7 +457,6 @@ class ChatSession:
     def _convert_excel_to_json(self, input_path: str, output_path: str) -> str:
         """Convert Excel file to JSON."""
         import pandas as pd
-        import json
 
         df = pd.read_excel(input_path, engine="openpyxl")
         result = df.to_dict(orient="records")
@@ -432,10 +469,9 @@ class ChatSession:
     def _convert_csv_to_json(self, input_path: str, output_path: str) -> str:
         """Convert CSV file to JSON with chunking for large files."""
         import pandas as pd
-        import json
 
         # Read in chunks to handle large files
-        chunk_size = 10000
+        chunk_size = self.CSV_CHUNK_SIZE
         chunks = []
 
         for chunk in pd.read_csv(input_path, chunksize=chunk_size, encoding="utf-8"):
@@ -453,7 +489,6 @@ class ChatSession:
     def _convert_word_to_json(self, input_path: str, output_path: str) -> str:
         """Convert Word document to JSON, including tables."""
         from docx import Document
-        import json
 
         doc = Document(input_path)
         result = {"paragraphs": [], "tables": []}
@@ -487,7 +522,6 @@ class ChatSession:
     def _convert_pdf_to_json(self, input_path: str, output_path: str) -> str:
         """Convert PDF to JSON, processing page by page."""
         from pypdf import PdfReader
-        import json
 
         reader = PdfReader(input_path)
         result = {"pages": [], "metadata": {"page_count": len(reader.pages)}}
@@ -506,8 +540,6 @@ class ChatSession:
 
     def _convert_to_markdown(self, input_file: str, output_file: str) -> str:
         """Convert document files to Markdown format."""
-        import os
-        from pathlib import Path
 
         # Resolve paths relative to safe directory
         input_path = os.path.join(self.safe_directory, input_file)
@@ -554,7 +586,7 @@ class ChatSession:
         import pandas as pd
 
         # Read in chunks to handle large files
-        chunk_size = 10000
+        chunk_size = self.CSV_CHUNK_SIZE
         chunks = []
 
         for chunk in pd.read_csv(input_path, chunksize=chunk_size, encoding="utf-8"):

@@ -15,6 +15,9 @@ from prompt_toolkit.formatted_text import HTML
 class CommandExecutor:
     """Handles safe execution of shell commands with user permission."""
 
+    # Constants
+    COMMAND_TIMEOUT = 30  # Timeout in seconds for command execution
+
     def __init__(self, safe_directory: str = None):
         self.allowed_commands = set()  # Commands user has allowed this session
         # Use a dedicated console to avoid conflicts with Live displays
@@ -99,7 +102,7 @@ class CommandExecutor:
                 shell=True,
                 capture_output=True,
                 text=True,
-                timeout=30,  # 30 second timeout
+                timeout=self.COMMAND_TIMEOUT,
                 cwd=str(self.safe_directory),  # Execute in the sandboxed directory
             )
 
@@ -126,7 +129,7 @@ class CommandExecutor:
             return {"success": success, "output": output, "error": error, "cancelled": False}
 
         except subprocess.TimeoutExpired:
-            error_msg = "Command timed out after 30 seconds"
+            error_msg = f"Command timed out after {self.COMMAND_TIMEOUT} seconds"
             self.console.print(f"[red]✗ {error_msg}[/red]\n")
             return {"success": False, "output": "", "error": error_msg, "cancelled": False}
         except Exception as e:

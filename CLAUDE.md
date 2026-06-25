@@ -22,19 +22,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 4. **executor.py** - CommandExecutor class for sandboxed bash execution with permission prompts
 5. **document_reader.py** - Read PDF, Word, Excel, PowerPoint, CSV, text files
 6. **document_writer.py** - Write Word, Excel, PowerPoint, CSV, text files with operations
+7. **convert_helpers.py** - Python conversion scripts (Excel→JSON/MD, CSV→JSON/MD, Word→JSON/MD, PDF→JSON/MD)
 
 ### Project Structure
 
 ```
 slice_agent/
 ├── src/slice/
-│   ├── main.py              # Entry point & signal handling
-│   ├── ui.py                # ModelSelector & ChatUI (Rich + prompt-toolkit)
-│   ├── chat.py              # ChatSession with Ollama integration (~629 lines)
-│   ├── executor.py          # CommandExecutor for sandboxed bash (~234 lines)
-│   ├── document_reader.py   # Multi-format document reading (~222 lines)
-│   └── document_writer.py   # Multi-format document writing (~442 lines)
-├── pyproject.toml           # Python package config (v1.1.0)
+│   ├── main.py              # Entry point & signal handling (~72 lines)
+│   ├── ui.py                # ModelSelector & ChatUI (Rich + prompt-toolkit) (~251 lines)
+│   ├── chat.py              # ChatSession with Ollama integration (~1060 lines)
+│   ├── executor.py          # CommandExecutor for sandboxed bash (~208 lines)
+│   ├── document_reader.py   # Multi-format document reading (~253 lines)
+│   ├── document_writer.py   # Multi-format document writing (~566 lines)
+│   └── convert_helpers.py   # Python scripts for file format conversion (~139 lines)
+├── pyproject.toml           # Python package config (v1.4.0)
 └── README.md                # User documentation
 ```
 
@@ -172,6 +174,23 @@ All operations are restricted to the directory where `slice` was started.
 8. Return result to model
 ```
 
+### Convert Tools (JSON & Markdown)
+```python
+# In chat.py, ChatSession._convert_to_json() and _convert_to_markdown()
+1. Model calls convert_to_json or convert_to_markdown with file_path and output_path
+2. Detect file type by extension (.xlsx, .csv, .docx, .pdf)
+3. Import conversion script from convert_helpers module
+4. Write Python script to temp file
+5. Execute script with subprocess (python3 temp_script.py input_file output_file)
+6. Parse output and return success/failure to model
+
+# Key features:
+- Large file support: CSV chunked in 10k row batches
+- Excel, Word, PDF processed page-by-page or incrementally
+- Proper error handling (no silent failures like bash one-liners)
+- Markdown: Tables converted to | col1 | col2 | format using tabulate
+```
+
 ## Document Operations
 
 ### Supported Read Formats
@@ -238,6 +257,36 @@ All operations are restricted to the directory where `slice` was started.
 ## System Message Guidelines
 
 The system message in `chat.py` guides model behavior:
+
+**CRITICAL - Models Must CALL Tools, Not Talk About Them (added in v1.3.2 update):**
+
+The system message now includes explicit examples of correct vs incorrect behavior:
+
+**Correct Tool Use for Creating Apps:**
+When user asks to create an app/script, model makes TWO bash tool calls automatically:
+1. First call: Creates the file (user sees permission prompt box, approves)
+2. Second call: Runs the file (user sees another permission prompt box with `python3 app.py`, can approve/deny)
+
+Example flow:
+- User: "create a Python app"
+- Model calls bash tool: `cat > app.py << EOF...` → User approves → File created
+- Model calls bash tool again: `python3 app.py` → User sees second permission box, can deny if they don't want to run it yet
+
+**Incorrect Behavior (what we're fixing):**
+- User: "create an app" → Model creates file, then asks "Would you like me to run it?" ← WRONG! Just call bash tool to run it.
+- User: "Yes" → Model responds with text "Running app.py" ← WRONG! Must call bash tool.
+
+**Key Rules:**
+- When user says "create/make/build app/script" → Make TWO tool calls (create, then run)
+- When user says "run/execute X" → CALL bash tool
+- When user says "yes/y/sure/ok" after offer to run → CALL bash tool
+- When user asks "how do I..." or "what is..." → Only then explain with text
+- **DO NOT ask "Would you like me to run it?" in text** - just call the bash tool and let the permission system handle user approval
+- **After tool success: respond concisely** - don't explain code or give instructions
+- **NEVER respond with just text like "Running app.py"** - must actually call the tool
+- **Default to ACTION (calling tools)** when ambiguous - user can deny via permission prompt
+
+This fixes models explaining/acknowledging instead of doing (common with gemma4, mistral, granite)
 
 **Tool usage rules:**
 - Use bash for file/system operations, NOT for echoing knowledge answers
@@ -335,6 +384,21 @@ ollama pull llama3.1
    - The tool description now includes concrete examples to guide models
    - System message includes step-by-step workflow for spreadsheet editing
 
+8. **File conversion approach**
+   - Use convert_to_json or convert_to_markdown tools, NOT bash one-liners
+   - Bash commands like `python3 -c "import pandas..."` were error-prone
+   - convert_helpers.py contains dedicated, tested conversion scripts
+   - Scripts handle large files with chunking (CSVs in 10k row batches)
+   - Proper error messages instead of cryptic subprocess failures
+
+9. **GUI applications (tkinter, PyQt, electron)**
+   - GUI apps created by Slice work correctly but **cannot be launched from within Slice**
+   - CommandExecutor runs commands with `capture_output=True`, which detaches from display server
+   - GUI windows cannot appear in detached subprocesses
+   - When user requests GUI app creation, create the file correctly but inform user: "Note: GUI apps must be run in a separate terminal. Run with: python3 <filename>"
+   - User must run GUI apps manually in a separate terminal window to see the GUI
+   - This is an architectural limitation of Slice's sandboxed execution model
+
 ## Key Dependencies
 
 ```toml
@@ -359,7 +423,19 @@ ruff>=0.1.0               # Linter (line-length 100)
 
 ## Version History
 
-- **v1.3.2** - Current version, Markdown conversion support
+- **v1.4.0** - Current version, Enhanced model behavior and tool calling
+  - **MAJOR:** Fixed critical system message issues for better model behavior
+  - Enhanced tool descriptions to prevent models from misusing write_document for Python files
+  - Added explicit "Creating Python/JavaScript Apps" section to system message
+  - Improved bash tool description with concrete examples (cat > file.py << EOF, python3 file.py)
+  - Fixed llama models trying to use write_document with nonsense operations
+  - Fixed granite models trying to run files before creating them
+  - Added "DO NOT respond with text after tool call" guidance for sequential tool execution
+  - Models now understand to use bash for Python apps, not write_document
+  - Better tool calling behavior across gemma4, granite4 models
+  - Note: llama3.1 8B has poor tool calling support (outputs JSON instead of calling tools)
+
+- **v1.3.2** - Markdown conversion support
   - **NEW TOOL:** Added `convert_to_markdown` tool for converting documents to Markdown
   - Supports Excel, CSV, Word (with tables), and PDF files
   - Tables automatically converted to Markdown table syntax with | separators
