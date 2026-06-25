@@ -10,22 +10,22 @@
 
 Slice is a beautiful terminal IDE that wraps local Ollama models with practical coding tools. Built with **Python** and the **Rich** library, it provides streaming chat, code editing with diffs, document operations, and git integration - all sandboxed to your project directory.
 
-## 🆕 What's New in v1.3.1
+## 🆕 What's New in v1.3.2
+
+- **📝 Convert to Markdown** - New `convert_to_markdown` tool for document conversion
+  - Convert Excel, CSV, Word (with tables), and PDF files to Markdown format
+  - Tables automatically formatted with Markdown table syntax (| separators)
+  - Same large file handling as convert_to_json (chunking/streaming)
+  - Perfect for documentation workflows and version control
+  - Example: `convert budget.xlsx to budget.md`
+
+### Previous Updates (v1.3.1)
 
 - **📊 Word Document Table Extraction** - Tables in Word documents are now extracted alongside paragraphs
-  - Fixes missing table data when reading .docx files
-  - Tables appear in document flow with row-by-row formatting
-  - Word-to-JSON conversion now includes both paragraphs AND tables
 - **🚀 Large File Support** - New `convert_to_json` tool handles massive files efficiently
-  - CSV files processed in 10k row chunks to avoid memory errors
-  - Excel, PDF, and Word files use streaming/chunking
-  - No more timeouts or crashes on large file conversions
-- **🔧 New Tool: convert_to_json** - Dedicated file format conversion tool
-  - Replaces error-prone bash one-liners
-  - Proper error handling and progress feedback
-  - Supports .xlsx, .csv, .docx (with tables!), .pdf
+- **🔧 Dedicated Conversion Tool** - Replaces error-prone bash one-liners with proper error handling
 
-### Previous Updates (v1.3.0)
+### v1.3.0
 
 - **🔄 Universal File to JSON Conversion** - Convert Excel, CSV, Word, and PDF files to JSON seamlessly
 - **🐛 Fixed UI Issues** - Removed `<tool_call>` tags appearing in model output
@@ -160,11 +160,13 @@ Read/write ANY document type - PDF, Excel, Word, CSV, Markdown, etc.
 **File format conversion:**
 ```
 🍕 convert budget.xlsx to budget.json
+🍕 convert budget.xlsx to budget.md
 🍕 convert report.docx to report.json
+🍕 convert report.docx to report.md
 🍕 convert contract.pdf to contract.json
-🍕 convert data.csv to data.json
+🍕 convert data.csv to data.md
 ```
-Seamlessly convert Excel, Word, PDF, and CSV files to JSON format.
+Seamlessly convert Excel, Word, PDF, and CSV files to JSON or Markdown format.
 
 **Git workflows:**
 ```

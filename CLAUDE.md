@@ -77,6 +77,7 @@ Slice uses Ollama's function/tool calling feature. Models that support tools rec
 3. **write_document** - Write Word, Excel, PowerPoint, PDF, CSV, text with JSON operations
 4. **edit_code** - Edit source code files with diff preview and approval
 5. **convert_to_json** - Convert Excel, CSV, Word (with tables), PDF to JSON efficiently
+6. **convert_to_markdown** - Convert Excel, CSV, Word (with tables), PDF to Markdown efficiently
 
 **Tool-capable models:** llama3.x, mistral, gemma, gemma2, gemma4, command-r, qwen, qwen2
 
@@ -346,7 +347,8 @@ reportlab>=4.0.0          # PDF writing
 python-docx>=1.0.0        # Word documents
 openpyxl>=3.0.0           # Excel spreadsheets
 python-pptx>=0.6.0        # PowerPoint presentations
-pandas>=2.0.0             # File format conversion (Excel/CSV to JSON)
+pandas>=2.0.0             # File format conversion (Excel/CSV to JSON/Markdown)
+tabulate>=0.9.0           # Markdown table generation for pandas
 
 # Dev dependencies
 pytest>=7.0.0
@@ -357,7 +359,14 @@ ruff>=0.1.0               # Linter (line-length 100)
 
 ## Version History
 
-- **v1.3.1** - Current version, large file support and table extraction
+- **v1.3.2** - Current version, Markdown conversion support
+  - **NEW TOOL:** Added `convert_to_markdown` tool for converting documents to Markdown
+  - Supports Excel, CSV, Word (with tables), and PDF files
+  - Tables automatically converted to Markdown table syntax with | separators
+  - Handles large files with chunking/streaming (same as convert_to_json)
+  - Added tabulate dependency for pandas Markdown table generation
+
+- **v1.3.1** - Large file support and table extraction
   - **NEW TOOL:** Added `convert_to_json` tool for reliable file format conversion
   - Fixed Word document reader to extract tables alongside paragraphs (was missing tables!)
   - Word-to-JSON conversion now includes both paragraphs AND tables

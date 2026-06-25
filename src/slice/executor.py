@@ -1,17 +1,16 @@
 """Safe command execution with user permission."""
 
 import subprocess
-import sys
 import os
 import re
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 from rich.console import Console
-from rich.prompt import Confirm
 from rich.panel import Panel
 from rich.text import Text
 from prompt_toolkit import prompt as pt_prompt
 from prompt_toolkit.formatted_text import HTML
+
 
 class CommandExecutor:
     """Handles safe execution of shell commands with user permission."""
@@ -56,8 +55,10 @@ class CommandExecutor:
             self.console.print(f"[bold red]⚠️  DANGER: {danger_msg}[/bold red]")
 
         if escapes_sandbox:
-            self.console.print(f"[bold red]⚠️  SANDBOX ESCAPE DETECTED[/bold red]")
-            self.console.print(f"[red]This command tries to access paths outside: {self.safe_directory}[/red]")
+            self.console.print("[bold red]⚠️  SANDBOX ESCAPE DETECTED[/bold red]")
+            self.console.print(
+                f"[red]This command tries to access paths outside: {self.safe_directory}[/red]"
+            )
             self.console.print("[red]Suspicious paths:[/red]")
             for path in suspicious_paths:
                 self.console.print(f"  [red]• {path}[/red]")
@@ -66,40 +67,28 @@ class CommandExecutor:
         # Ask for permission using prompt_toolkit (works better with Live displays)
         try:
             if escapes_sandbox or not is_safe:
-                prompt_text = HTML("<red><b>⚠️  Are you SURE you want to execute this? (yes/N): </b></red>")
+                prompt_text = HTML(
+                    "<red><b>⚠️  Are you SURE you want to execute this? (yes/N): </b></red>"
+                )
                 # Require explicit "yes" for dangerous/escaped commands
                 response = pt_prompt(prompt_text, default="").strip().lower()
-                if response != 'yes':
+                if response != "yes":
                     self.console.print("[dim]Action cancelled by user[/dim]\n")
-                    return {
-                        "success": False,
-                        "output": "",
-                        "error": "",
-                        "cancelled": True
-                    }
+                    return {"success": False, "output": "", "error": "", "cancelled": True}
             else:
                 # Normal permission prompt
-                response = pt_prompt(
-                    HTML("<red>Execute this command? (y/N): </red>"),
-                    default=""
-                ).strip().lower()
+                response = (
+                    pt_prompt(HTML("<red>Execute this command? (y/N): </red>"), default="")
+                    .strip()
+                    .lower()
+                )
 
-                if response not in ('y', 'yes'):
+                if response not in ("y", "yes"):
                     self.console.print("[dim]Action cancelled by user[/dim]\n")
-                    return {
-                        "success": False,
-                        "output": "",
-                        "error": "",
-                        "cancelled": True
-                    }
+                    return {"success": False, "output": "", "error": "", "cancelled": True}
         except (KeyboardInterrupt, EOFError):
             self.console.print("\n[dim]Action cancelled by user[/dim]\n")
-            return {
-                "success": False,
-                "output": "",
-                "error": "",
-                "cancelled": True
-            }
+            return {"success": False, "output": "", "error": "", "cancelled": True}
 
         # Execute the command
         try:
@@ -111,7 +100,7 @@ class CommandExecutor:
                 capture_output=True,
                 text=True,
                 timeout=30,  # 30 second timeout
-                cwd=str(self.safe_directory)  # Execute in the sandboxed directory
+                cwd=str(self.safe_directory),  # Execute in the sandboxed directory
             )
 
             success = result.returncode == 0
@@ -134,31 +123,16 @@ class CommandExecutor:
 
             self.console.print()  # Blank line
 
-            return {
-                "success": success,
-                "output": output,
-                "error": error,
-                "cancelled": False
-            }
+            return {"success": success, "output": output, "error": error, "cancelled": False}
 
         except subprocess.TimeoutExpired:
             error_msg = "Command timed out after 30 seconds"
             self.console.print(f"[red]✗ {error_msg}[/red]\n")
-            return {
-                "success": False,
-                "output": "",
-                "error": error_msg,
-                "cancelled": False
-            }
+            return {"success": False, "output": "", "error": error_msg, "cancelled": False}
         except Exception as e:
             error_msg = f"Failed to execute: {str(e)}"
             self.console.print(f"[red]✗ {error_msg}[/red]\n")
-            return {
-                "success": False,
-                "output": "",
-                "error": error_msg,
-                "cancelled": False
-            }
+            return {"success": False, "output": "", "error": error_msg, "cancelled": False}
 
     def check_sandbox_escape(self, command: str) -> Tuple[bool, List[str]]:
         """
@@ -172,13 +146,13 @@ class CommandExecutor:
         # Patterns that indicate accessing outside the sandbox
         patterns = [
             # Absolute paths
-            (r'(?:^|\s)(/[^\s]+)', 'absolute path'),
+            (r"(?:^|\s)(/[^\s]+)", "absolute path"),
             # Home directory
-            (r'(?:^|\s)(~[^\s]*)', 'home directory'),
+            (r"(?:^|\s)(~[^\s]*)", "home directory"),
             # Parent directory traversal
-            (r'(?:^|\s)(\.\./[^\s]*)', 'parent directory'),
+            (r"(?:^|\s)(\.\./[^\s]*)", "parent directory"),
             # cd commands
-            (r'cd\s+([^\s;&|]+)', 'directory change'),
+            (r"cd\s+([^\s;&|]+)", "directory change"),
         ]
 
         for pattern, description in patterns:
@@ -188,11 +162,11 @@ class CommandExecutor:
 
                 # Expand and resolve the path
                 try:
-                    if path_str.startswith('~'):
+                    if path_str.startswith("~"):
                         expanded = Path(path_str).expanduser().resolve()
-                    elif path_str.startswith('/'):
+                    elif path_str.startswith("/"):
                         expanded = Path(path_str).resolve()
-                    elif path_str.startswith('..'):
+                    elif path_str.startswith(".."):
                         expanded = (self.safe_directory / path_str).resolve()
                     else:
                         # Relative path within sandbox

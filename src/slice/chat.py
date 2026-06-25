@@ -2,8 +2,6 @@
 
 import ollama
 import signal
-import subprocess
-import os
 from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner
@@ -13,9 +11,18 @@ console = Console()
 
 # Tool-capable models (support function calling)
 TOOL_CAPABLE_MODELS = [
-    "llama3", "llama3.1", "llama3.2", "llama3.3",
-    "mistral", "gemma", "gemma2", "gemma4",
-    "command-r", "command-r-plus", "qwen", "qwen2",
+    "llama3",
+    "llama3.1",
+    "llama3.2",
+    "llama3.3",
+    "mistral",
+    "gemma",
+    "gemma2",
+    "gemma4",
+    "command-r",
+    "command-r-plus",
+    "qwen",
+    "qwen2",
 ]
 
 # Tool definitions (standard format models expect)
@@ -28,14 +35,11 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "The bash command to execute"
-                    }
+                    "command": {"type": "string", "description": "The bash command to execute"}
                 },
-                "required": ["command"]
-            }
-        }
+                "required": ["command"],
+            },
+        },
     },
     {
         "type": "function",
@@ -47,12 +51,12 @@ TOOLS = [
                 "properties": {
                     "file_path": {
                         "type": "string",
-                        "description": "Path to the file to read (relative to current directory)"
+                        "description": "Path to the file to read (relative to current directory)",
                     }
                 },
-                "required": ["file_path"]
-            }
-        }
+                "required": ["file_path"],
+            },
+        },
     },
     {
         "type": "function",
@@ -61,31 +65,28 @@ TOOLS = [
             "description": (
                 "Write to document files (Word, Excel, PowerPoint, CSV, PDF, text). ALL document types supported.\n\n"
                 "SPREADSHEET EXAMPLES (Excel/CSV):\n"
-                "Set cell: {\"type\": \"set_cell\", \"sheet\": \"Sheet1\", \"row\": 5, \"col\": 3, \"value\": \"Data\"}\n"
-                "Add row: {\"type\": \"append_row\", \"sheet\": \"Sheet1\", \"values\": [\"Name\", \"Age\"]}\n"
-                "Fill column: {\"type\": \"set_column\", \"sheet\": \"Sheet1\", \"col\": \"B\", \"start_row\": 2, \"values\": [10, 20]}\n\n"
+                'Set cell: {"type": "set_cell", "sheet": "Sheet1", "row": 5, "col": 3, "value": "Data"}\n'
+                'Add row: {"type": "append_row", "sheet": "Sheet1", "values": ["Name", "Age"]}\n'
+                'Fill column: {"type": "set_column", "sheet": "Sheet1", "col": "B", "start_row": 2, "values": [10, 20]}\n\n'
                 "PDF EXAMPLES:\n"
-                "Add page: {\"type\": \"add_page\", \"title\": \"Page Title\", \"content\": \"Page content\"}\n"
-                "Add paragraph: {\"type\": \"add_paragraph\", \"text\": \"Paragraph text\", \"font_size\": 12}\n"
-                "Add text: {\"type\": \"add_text\", \"text\": \"Text content\", \"font_size\": 14}\n\n"
+                'Add page: {"type": "add_page", "title": "Page Title", "content": "Page content"}\n'
+                'Add paragraph: {"type": "add_paragraph", "text": "Paragraph text", "font_size": 12}\n'
+                'Add text: {"type": "add_text", "text": "Text content", "font_size": 14}\n\n'
                 "Multiple operations - use array:\n"
-                "[{\"type\": \"add_page\", \"title\": \"Intro\"}, {\"type\": \"add_paragraph\", \"text\": \"Content\"}]"
+                '[{"type": "add_page", "title": "Intro"}, {"type": "add_paragraph", "text": "Content"}]'
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path to the file to write"
-                    },
+                    "file_path": {"type": "string", "description": "Path to the file to write"},
                     "operations": {
                         "type": "string",
-                        "description": "JSON string of operation(s). Single object or array of objects. Must be valid JSON."
-                    }
+                        "description": "JSON string of operation(s). Single object or array of objects. Must be valid JSON.",
+                    },
                 },
-                "required": ["file_path", "operations"]
-            }
-        }
+                "required": ["file_path", "operations"],
+            },
+        },
     },
     {
         "type": "function",
@@ -95,26 +96,23 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path to the code file to edit"
-                    },
+                    "file_path": {"type": "string", "description": "Path to the code file to edit"},
                     "old_content": {
                         "type": "string",
-                        "description": "The exact text to find and replace (must match exactly including whitespace)"
+                        "description": "The exact text to find and replace (must match exactly including whitespace)",
                     },
                     "new_content": {
                         "type": "string",
-                        "description": "The new text to replace it with"
+                        "description": "The new text to replace it with",
                     },
                     "description": {
                         "type": "string",
-                        "description": "Brief description of what this edit does (e.g., 'Fix typo in function name', 'Add error handling')"
-                    }
+                        "description": "Brief description of what this edit does (e.g., 'Fix typo in function name', 'Add error handling')",
+                    },
                 },
-                "required": ["file_path", "old_content", "new_content", "description"]
-            }
-        }
+                "required": ["file_path", "old_content", "new_content", "description"],
+            },
+        },
     },
     {
         "type": "function",
@@ -126,17 +124,38 @@ TOOLS = [
                 "properties": {
                     "input_file": {
                         "type": "string",
-                        "description": "Path to the input file to convert"
+                        "description": "Path to the input file to convert",
                     },
                     "output_file": {
                         "type": "string",
-                        "description": "Path where the JSON output should be saved"
-                    }
+                        "description": "Path where the JSON output should be saved",
+                    },
                 },
-                "required": ["input_file", "output_file"]
-            }
-        }
-    }
+                "required": ["input_file", "output_file"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "convert_to_markdown",
+            "description": "Convert document files to Markdown format efficiently (handles large files). Supports Excel (.xlsx), CSV (.csv), Word (.docx with tables), and PDF (.pdf). Tables are converted to Markdown table syntax.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "input_file": {
+                        "type": "string",
+                        "description": "Path to the input file to convert",
+                    },
+                    "output_file": {
+                        "type": "string",
+                        "description": "Path where the Markdown output should be saved (.md extension)",
+                    },
+                },
+                "required": ["input_file", "output_file"],
+            },
+        },
+    },
 ]
 
 
@@ -173,19 +192,19 @@ class ChatSession:
                     "2. Identify what needs to change (which rows, columns, cells)\n"
                     "3. Use write_document with JSON operations\n"
                     "4. Common operations:\n"
-                    "   - Set specific cell: {\"type\": \"set_cell\", \"sheet\": \"Sheet1\", \"row\": 2, \"col\": \"A\", \"value\": \"Data\"}\n"
-                    "   - Add new row: {\"type\": \"append_row\", \"sheet\": \"Sheet1\", \"values\": [\"col1\", \"col2\", \"col3\"]}\n"
-                    "   - Fill column: {\"type\": \"set_column\", \"sheet\": \"Sheet1\", \"col\": \"B\", \"start_row\": 2, \"values\": [10, 20, 30]}\n"
-                    "5. For CSV files, omit the \"sheet\" parameter\n"
+                    '   - Set specific cell: {"type": "set_cell", "sheet": "Sheet1", "row": 2, "col": "A", "value": "Data"}\n'
+                    '   - Add new row: {"type": "append_row", "sheet": "Sheet1", "values": ["col1", "col2", "col3"]}\n'
+                    '   - Fill column: {"type": "set_column", "sheet": "Sheet1", "col": "B", "start_row": 2, "values": [10, 20, 30]}\n'
+                    '5. For CSV files, omit the "sheet" parameter\n'
                     "6. Multiple operations can be combined in an array: [{...}, {...}]\n"
-                    "7. Columns can be letters (\"A\", \"M\") or numbers (1, 13)\n"
+                    '7. Columns can be letters ("A", "M") or numbers (1, 13)\n'
                     "8. Rows are 1-indexed (row 1 is first row)\n\n"
                     "PDF editing workflow (.pdf):\n"
                     "1. PDFs can be created and edited with write_document\n"
                     "2. Common operations:\n"
-                    "   - Add page with title and content: {\"type\": \"add_page\", \"title\": \"Page Title\", \"content\": \"Content\"}\n"
-                    "   - Add paragraph: {\"type\": \"add_paragraph\", \"text\": \"Text content\", \"font_size\": 12}\n"
-                    "   - Add text: {\"type\": \"add_text\", \"text\": \"Text\", \"font_size\": 14}\n"
+                    '   - Add page with title and content: {"type": "add_page", "title": "Page Title", "content": "Content"}\n'
+                    '   - Add paragraph: {"type": "add_paragraph", "text": "Text content", "font_size": 12}\n'
+                    '   - Add text: {"type": "add_text", "text": "Text", "font_size": 14}\n'
                     "3. Multiple pages/paragraphs can be combined in an array\n"
                     "4. PDFs are built sequentially - operations are applied in order\n\n"
                     "Git operations (use bash tool - all require user approval via permission prompt):\n"
@@ -193,14 +212,17 @@ class ChatSession:
                     "- Local operations (safe to suggest): git add, git commit, git checkout -b, git merge\n"
                     "- Remote operations: NEVER suggest git push or git pull unless user EXPLICITLY asks in their message\n"
                     "- After making local commits, remind user they can push when ready, don't run push automatically\n\n"
-                    "File format conversion to JSON - Use convert_to_json tool:\n"
+                    "File format conversion - Use convert_to_json or convert_to_markdown tools:\n"
                     "- Use convert_to_json for Excel (.xlsx), CSV (.csv), Word (.docx), and PDF (.pdf) files\n"
-                    "- This tool handles large files efficiently with chunking/streaming to avoid memory errors\n"
+                    "- Use convert_to_markdown to convert documents to Markdown (.md) format with table support\n"
+                    "- Both tools handle large files efficiently with chunking/streaming to avoid memory errors\n"
                     "- Word documents: Extracts BOTH paragraphs AND tables (tables were missing before!)\n"
+                    "- CSV/Excel to Markdown: Converts tables to Markdown table syntax with | separators\n"
                     "- CSV files: Uses chunking for large files (processes 10k rows at a time)\n"
-                    "- Excel files: Converts all rows to JSON array format\n"
+                    "- Excel files: Converts all rows to JSON array or Markdown tables\n"
                     "- PDF files: Extracts text page-by-page to avoid memory issues\n"
-                    "- Example: convert_to_json with input_file='data.xlsx' and output_file='data.json'\n"
+                    "- Example JSON: convert_to_json with input_file='data.xlsx' and output_file='data.json'\n"
+                    "- Example Markdown: convert_to_markdown with input_file='data.xlsx' and output_file='data.md'\n"
                     "- For JSON files, treat them as text files with write_document using replace_content operation\n\n"
                     "File operations:\n"
                     "- When user asks about file content (not conversion), read it directly with read_document\n"
@@ -215,7 +237,7 @@ class ChatSession:
                     "- Use simple paragraph formatting with bullet points (•) or numbered lists\n"
                     "- Avoid markdown tables with | symbols - they display poorly in terminals\n"
                     "- Use simple text formatting instead of complex markdown"
-                )
+                ),
             }
         ]
 
@@ -225,7 +247,9 @@ class ChatSession:
 
         # Use Python executor for sandboxing and permission prompts
         executor = CommandExecutor(self.safe_directory)
-        result = executor.execute_with_permission(command, context="Model requested command execution")
+        result = executor.execute_with_permission(
+            command, context="Model requested command execution"
+        )
 
         if result.get("cancelled"):
             return "Command cancelled by user."
@@ -255,8 +279,13 @@ class ChatSession:
                 # Warn and truncate if content is very large
                 MAX_CHARS = 100000  # ~100KB of text
                 if len(content) > MAX_CHARS:
-                    console.print(f"[yellow]⚠️  Large document ({len(content)} chars) - truncating to first {MAX_CHARS} chars[/yellow]")
-                    content = content[:MAX_CHARS] + f"\n\n[... truncated {len(content) - MAX_CHARS} additional characters ...]"
+                    console.print(
+                        f"[yellow]⚠️  Large document ({len(content)} chars) - truncating to first {MAX_CHARS} chars[/yellow]"
+                    )
+                    content = (
+                        content[:MAX_CHARS]
+                        + f"\n\n[... truncated {len(content) - MAX_CHARS} additional characters ...]"
+                    )
 
                 return f"[{file_type} file content]\n{content}"
             else:
@@ -292,15 +321,16 @@ class ChatSession:
                 return f"Error: {error}"
 
         except json.JSONDecodeError:
-            return f"Error: Invalid JSON in operations parameter"
+            return "Error: Invalid JSON in operations parameter"
         except Exception as e:
             return f"Error writing document: {str(e)}"
 
-    def _edit_code(self, file_path: str, old_content: str, new_content: str, description: str) -> str:
+    def _edit_code(
+        self, file_path: str, old_content: str, new_content: str, description: str
+    ) -> str:
         """Edit a code file with diff preview and user approval."""
         import os
         import difflib
-        from .executor import CommandExecutor
 
         # Resolve path relative to safe directory
         full_path = os.path.join(self.safe_directory, file_path)
@@ -310,7 +340,7 @@ class ChatSession:
             if not os.path.exists(full_path):
                 return f"Error: File not found: {file_path}"
 
-            with open(full_path, 'r', encoding='utf-8') as f:
+            with open(full_path, "r", encoding="utf-8") as f:
                 current_content = f.read()
 
             # Check if old_content exists in file
@@ -326,31 +356,32 @@ class ChatSession:
                 updated_content.splitlines(keepends=True),
                 fromfile=f"{file_path} (current)",
                 tofile=f"{file_path} (proposed)",
-                lineterm=''
+                lineterm="",
             )
-            diff_text = ''.join(diff)
+            diff_text = "".join(diff)
 
             # Display the edit request
-            console.print(f"\n[bold cyan]📝 Code Edit Request[/bold cyan]")
+            console.print("\n[bold cyan]📝 Code Edit Request[/bold cyan]")
             console.print(f"[dim]{description}[/dim]\n")
 
             # Show diff in a panel
             from rich.syntax import Syntax
+
             diff_syntax = Syntax(diff_text, "diff", theme="monokai", line_numbers=False)
             console.print(Panel(diff_syntax, title=f"Changes to {file_path}", border_style="cyan"))
 
             # Ask for permission
             response = input("\nApply these changes? (y/N): ").strip().lower()
 
-            if response == 'y':
+            if response == "y":
                 # Write the updated content
-                with open(full_path, 'w', encoding='utf-8') as f:
+                with open(full_path, "w", encoding="utf-8") as f:
                     f.write(updated_content)
                 console.print(f"[green]✓ Changes applied to {file_path}[/green]\n")
                 return f"Successfully edited {file_path}: {description}"
             else:
-                console.print(f"[yellow]✗ Changes cancelled[/yellow]\n")
-                return f"Edit cancelled by user"
+                console.print("[yellow]✗ Changes cancelled[/yellow]\n")
+                return "Edit cancelled by user"
 
         except Exception as e:
             return f"Error editing file: {str(e)}"
@@ -370,16 +401,18 @@ class ChatSession:
         suffix = Path(input_path).suffix.lower()
 
         try:
-            if suffix == '.xlsx':
+            if suffix == ".xlsx":
                 return self._convert_excel_to_json(input_path, output_path)
-            elif suffix == '.csv':
+            elif suffix == ".csv":
                 return self._convert_csv_to_json(input_path, output_path)
-            elif suffix == '.docx':
+            elif suffix == ".docx":
                 return self._convert_word_to_json(input_path, output_path)
-            elif suffix == '.pdf':
+            elif suffix == ".pdf":
                 return self._convert_pdf_to_json(input_path, output_path)
             else:
-                return f"Error: Unsupported file type: {suffix}. Supported: .xlsx, .csv, .docx, .pdf"
+                return (
+                    f"Error: Unsupported file type: {suffix}. Supported: .xlsx, .csv, .docx, .pdf"
+                )
         except Exception as e:
             return f"Error converting {input_file} to JSON: {str(e)}"
 
@@ -388,10 +421,10 @@ class ChatSession:
         import pandas as pd
         import json
 
-        df = pd.read_excel(input_path, engine='openpyxl')
-        result = df.to_dict(orient='records')
+        df = pd.read_excel(input_path, engine="openpyxl")
+        result = df.to_dict(orient="records")
 
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False, default=str)
 
         return f"Successfully converted {len(result)} rows from Excel to JSON: {output_path}"
@@ -405,14 +438,14 @@ class ChatSession:
         chunk_size = 10000
         chunks = []
 
-        for chunk in pd.read_csv(input_path, chunksize=chunk_size, encoding='utf-8'):
+        for chunk in pd.read_csv(input_path, chunksize=chunk_size, encoding="utf-8"):
             chunks.append(chunk)
 
         # Combine all chunks
         df = pd.concat(chunks, ignore_index=True)
-        result = df.to_dict(orient='records')
+        result = df.to_dict(orient="records")
 
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False, default=str)
 
         return f"Successfully converted {len(result)} rows from CSV to JSON: {output_path}"
@@ -423,21 +456,18 @@ class ChatSession:
         import json
 
         doc = Document(input_path)
-        result = {
-            'paragraphs': [],
-            'tables': []
-        }
+        result = {"paragraphs": [], "tables": []}
 
         # Extract paragraphs and tables in order
         for element in doc.element.body:
-            if element.tag.endswith('p'):
+            if element.tag.endswith("p"):
                 for para in doc.paragraphs:
                     if para._element == element:
                         text = para.text.strip()
                         if text:
-                            result['paragraphs'].append(text)
+                            result["paragraphs"].append(text)
                         break
-            elif element.tag.endswith('tbl'):
+            elif element.tag.endswith("tbl"):
                 for table in doc.tables:
                     if table._element == element:
                         table_data = []
@@ -446,10 +476,10 @@ class ChatSession:
                             if any(row_data):
                                 table_data.append(row_data)
                         if table_data:
-                            result['tables'].append(table_data)
+                            result["tables"].append(table_data)
                         break
 
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
 
         return f"Successfully converted Word document to JSON: {len(result['paragraphs'])} paragraphs, {len(result['tables'])} tables → {output_path}"
@@ -460,25 +490,147 @@ class ChatSession:
         import json
 
         reader = PdfReader(input_path)
-        result = {
-            'pages': [],
-            'metadata': {
-                'page_count': len(reader.pages)
-            }
-        }
+        result = {"pages": [], "metadata": {"page_count": len(reader.pages)}}
 
         # Process pages one at a time to avoid memory issues
         for page_num, page in enumerate(reader.pages, start=1):
             page_text = page.extract_text()
-            result['pages'].append({
-                'page_number': page_num,
-                'text': page_text
-            })
+            result["pages"].append({"page_number": page_num, "text": page_text})
 
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
 
-        return f"Successfully converted {len(result['pages'])} pages from PDF to JSON: {output_path}"
+        return (
+            f"Successfully converted {len(result['pages'])} pages from PDF to JSON: {output_path}"
+        )
+
+    def _convert_to_markdown(self, input_file: str, output_file: str) -> str:
+        """Convert document files to Markdown format."""
+        import os
+        from pathlib import Path
+
+        # Resolve paths relative to safe directory
+        input_path = os.path.join(self.safe_directory, input_file)
+        output_path = os.path.join(self.safe_directory, output_file)
+
+        if not os.path.exists(input_path):
+            return f"Error: Input file not found: {input_file}"
+
+        suffix = Path(input_path).suffix.lower()
+
+        try:
+            if suffix == ".xlsx":
+                return self._convert_excel_to_markdown(input_path, output_path)
+            elif suffix == ".csv":
+                return self._convert_csv_to_markdown(input_path, output_path)
+            elif suffix == ".docx":
+                return self._convert_word_to_markdown(input_path, output_path)
+            elif suffix == ".pdf":
+                return self._convert_pdf_to_markdown(input_path, output_path)
+            else:
+                return (
+                    f"Error: Unsupported file type: {suffix}. Supported: .xlsx, .csv, .docx, .pdf"
+                )
+        except Exception as e:
+            return f"Error converting {input_file} to Markdown: {str(e)}"
+
+    def _convert_excel_to_markdown(self, input_path: str, output_path: str) -> str:
+        """Convert Excel file to Markdown with table formatting."""
+        import pandas as pd
+
+        # Read Excel file
+        df = pd.read_excel(input_path, engine="openpyxl")
+
+        # Convert to Markdown table
+        md_content = df.to_markdown(index=False)
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(md_content)
+
+        return f"Successfully converted {len(df)} rows from Excel to Markdown table: {output_path}"
+
+    def _convert_csv_to_markdown(self, input_path: str, output_path: str) -> str:
+        """Convert CSV file to Markdown with table formatting and chunking for large files."""
+        import pandas as pd
+
+        # Read in chunks to handle large files
+        chunk_size = 10000
+        chunks = []
+
+        for chunk in pd.read_csv(input_path, chunksize=chunk_size, encoding="utf-8"):
+            chunks.append(chunk)
+
+        # Combine all chunks
+        df = pd.concat(chunks, ignore_index=True)
+
+        # Convert to Markdown table
+        md_content = df.to_markdown(index=False)
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(md_content)
+
+        return f"Successfully converted {len(df)} rows from CSV to Markdown table: {output_path}"
+
+    def _convert_word_to_markdown(self, input_path: str, output_path: str) -> str:
+        """Convert Word document to Markdown, including tables."""
+        from docx import Document
+
+        doc = Document(input_path)
+        md_lines = []
+
+        # Extract paragraphs and tables in order
+        for element in doc.element.body:
+            if element.tag.endswith("p"):
+                for para in doc.paragraphs:
+                    if para._element == element:
+                        text = para.text.strip()
+                        if text:
+                            md_lines.append(text)
+                            md_lines.append("")  # Blank line after paragraph
+                        break
+            elif element.tag.endswith("tbl"):
+                for table in doc.tables:
+                    if table._element == element:
+                        # Convert table to Markdown format
+                        table_rows = []
+                        for i, row in enumerate(table.rows):
+                            row_data = [cell.text.strip() for cell in row.cells]
+                            table_rows.append("| " + " | ".join(row_data) + " |")
+
+                            # Add separator after header row
+                            if i == 0:
+                                separator = "| " + " | ".join(["---"] * len(row_data)) + " |"
+                                table_rows.append(separator)
+
+                        md_lines.extend(table_rows)
+                        md_lines.append("")  # Blank line after table
+                        break
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(md_lines))
+
+        return f"Successfully converted Word document to Markdown: {output_path}"
+
+    def _convert_pdf_to_markdown(self, input_path: str, output_path: str) -> str:
+        """Convert PDF to Markdown, processing page by page."""
+        from pypdf import PdfReader
+
+        reader = PdfReader(input_path)
+        md_lines = []
+
+        # Process pages one at a time to avoid memory issues
+        for page_num, page in enumerate(reader.pages, start=1):
+            page_text = page.extract_text()
+            md_lines.append(f"## Page {page_num}\n")
+            md_lines.append(page_text)
+            md_lines.append("\n---\n")  # Page separator
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(md_lines))
+
+        return (
+            f"Successfully converted {len(reader.pages)} pages from PDF to Markdown: {output_path}"
+        )
 
     def process_stream(self, user_input: str):
         """
@@ -487,10 +639,7 @@ class ChatSession:
         Returns True if completed, False if interrupted.
         """
         # Add user message to history
-        self.conversation_history.append({
-            "role": "user",
-            "content": user_input
-        })
+        self.conversation_history.append({"role": "user", "content": user_input})
 
         # Stream response from Ollama
         response_text = ""
@@ -501,9 +650,7 @@ class ChatSession:
             self.interrupted = True
 
         with Live(
-            Spinner("dots", text="[cyan]baking...[/cyan]"),
-            console=console,
-            transient=True
+            Spinner("dots", text="[cyan]baking...[/cyan]"), console=console, transient=True
         ) as live:
             try:
                 # Chat with tools - always pass them
@@ -511,7 +658,7 @@ class ChatSession:
                     model=self.model_name,
                     messages=self.conversation_history,
                     tools=TOOLS,
-                    stream=True
+                    stream=True,
                 )
 
                 # Install interrupt handler for streaming
@@ -565,10 +712,9 @@ class ChatSession:
                         signal.signal(signal.SIGINT, old_handler)
                     # Add partial response to history
                     if response_text:
-                        self.conversation_history.append({
-                            "role": "assistant",
-                            "content": response_text
-                        })
+                        self.conversation_history.append(
+                            {"role": "assistant", "content": response_text}
+                        )
                     return False
 
                 # If model provided a text response, show it
@@ -584,9 +730,7 @@ class ChatSession:
 
                     # Retry without tools
                     retry_stream = ollama.chat(
-                        model=self.model_name,
-                        messages=self.conversation_history,
-                        stream=True
+                        model=self.model_name, messages=self.conversation_history, stream=True
                     )
 
                     response_text = ""
@@ -603,13 +747,15 @@ class ChatSession:
                     console.print()  # Newline
 
                     if not response_text:
-                        console.print("[yellow]⚠️  Model returned empty response even without tools[/yellow]")
+                        console.print(
+                            "[yellow]⚠️  Model returned empty response even without tools[/yellow]"
+                        )
                         return True
 
                 # Add assistant response to history
                 assistant_message = {
                     "role": "assistant",
-                    "content": response_text  # Ensure it's the actual string, not wrapped
+                    "content": response_text,  # Ensure it's the actual string, not wrapped
                 }
                 if tool_calls:
                     assistant_message["tool_calls"] = tool_calls
@@ -643,28 +789,29 @@ class ChatSession:
                                 result = self._execute_command(command)
 
                                 # Add tool result to history
-                                self.conversation_history.append({
-                                    "role": "tool",
-                                    "content": result
-                                })
+                                self.conversation_history.append(
+                                    {"role": "tool", "content": result}
+                                )
 
                             elif name == "read_document":
                                 file_path = arguments.get("file_path", "")
 
                                 if not file_path:
-                                    console.print("[red]Error: Model provided empty file path[/red]")
+                                    console.print(
+                                        "[red]Error: Model provided empty file path[/red]"
+                                    )
                                     continue
 
                                 # Show spinner while reading document (this can take time for large files)
                                 with Live(
                                     Spinner("dots", text=f"[cyan]reading {file_path}...[/cyan]"),
                                     console=console,
-                                    transient=True  # Clean up after completion
+                                    transient=True,  # Clean up after completion
                                 ) as read_live:
                                     result = self._read_document(file_path)
                                     read_live.stop()
 
-                                console.print(f"[green]✓ Document loaded[/green]\n")
+                                console.print("[green]✓ Document loaded[/green]\n")
 
                                 # Check for interrupt after document load
                                 if self.interrupted:
@@ -673,24 +820,25 @@ class ChatSession:
                                     return False
 
                                 # Add tool result to history
-                                self.conversation_history.append({
-                                    "role": "tool",
-                                    "content": result
-                                })
+                                self.conversation_history.append(
+                                    {"role": "tool", "content": result}
+                                )
 
                             elif name == "write_document":
                                 file_path = arguments.get("file_path", "")
                                 operations = arguments.get("operations", "")
 
                                 if not file_path or not operations:
-                                    console.print("[red]Error: Model provided incomplete parameters[/red]")
+                                    console.print(
+                                        "[red]Error: Model provided incomplete parameters[/red]"
+                                    )
                                     continue
 
                                 # Show spinner while writing document
                                 with Live(
                                     Spinner("dots", text=f"[cyan]writing {file_path}...[/cyan]"),
                                     console=console,
-                                    transient=True  # Clean up after completion
+                                    transient=True,  # Clean up after completion
                                 ) as write_live:
                                     result = self._write_document(file_path, operations)
                                     write_live.stop()
@@ -699,7 +847,7 @@ class ChatSession:
                                 if result.startswith("Error:"):
                                     console.print(f"[red]✗ {result}[/red]\n")
                                 else:
-                                    console.print(f"[green]✓ Document updated[/green]\n")
+                                    console.print("[green]✓ Document updated[/green]\n")
 
                                 # Check for interrupt after write
                                 if self.interrupted:
@@ -708,10 +856,9 @@ class ChatSession:
                                     return False
 
                                 # Add tool result to history
-                                self.conversation_history.append({
-                                    "role": "tool",
-                                    "content": result
-                                })
+                                self.conversation_history.append(
+                                    {"role": "tool", "content": result}
+                                )
 
                             elif name == "edit_code":
                                 file_path = arguments.get("file_path", "")
@@ -720,11 +867,15 @@ class ChatSession:
                                 description = arguments.get("description", "")
 
                                 if not file_path or not old_content or not new_content:
-                                    console.print("[red]Error: Model provided incomplete parameters[/red]")
+                                    console.print(
+                                        "[red]Error: Model provided incomplete parameters[/red]"
+                                    )
                                     continue
 
                                 # Edit the code file (shows diff and asks for permission)
-                                result = self._edit_code(file_path, old_content, new_content, description)
+                                result = self._edit_code(
+                                    file_path, old_content, new_content, description
+                                )
 
                                 # Check for interrupt after edit
                                 if self.interrupted:
@@ -733,24 +884,28 @@ class ChatSession:
                                     return False
 
                                 # Add tool result to history
-                                self.conversation_history.append({
-                                    "role": "tool",
-                                    "content": result
-                                })
+                                self.conversation_history.append(
+                                    {"role": "tool", "content": result}
+                                )
 
                             elif name == "convert_to_json":
                                 input_file = arguments.get("input_file", "")
                                 output_file = arguments.get("output_file", "")
 
                                 if not input_file or not output_file:
-                                    console.print("[red]Error: Model provided incomplete parameters[/red]")
+                                    console.print(
+                                        "[red]Error: Model provided incomplete parameters[/red]"
+                                    )
                                     continue
 
                                 # Show spinner while converting (can take time for large files)
                                 with Live(
-                                    Spinner("dots", text=f"[cyan]converting {input_file} to JSON...[/cyan]"),
+                                    Spinner(
+                                        "dots",
+                                        text=f"[cyan]converting {input_file} to JSON...[/cyan]",
+                                    ),
                                     console=console,
-                                    transient=True
+                                    transient=True,
                                 ) as convert_live:
                                     result = self._convert_to_json(input_file, output_file)
                                     convert_live.stop()
@@ -768,14 +923,53 @@ class ChatSession:
                                     return False
 
                                 # Add tool result to history
-                                self.conversation_history.append({
-                                    "role": "tool",
-                                    "content": result
-                                })
+                                self.conversation_history.append(
+                                    {"role": "tool", "content": result}
+                                )
+
+                            elif name == "convert_to_markdown":
+                                input_file = arguments.get("input_file", "")
+                                output_file = arguments.get("output_file", "")
+
+                                if not input_file or not output_file:
+                                    console.print(
+                                        "[red]Error: Model provided incomplete parameters[/red]"
+                                    )
+                                    continue
+
+                                # Show spinner while converting (can take time for large files)
+                                with Live(
+                                    Spinner(
+                                        "dots",
+                                        text=f"[cyan]converting {input_file} to Markdown...[/cyan]",
+                                    ),
+                                    console=console,
+                                    transient=True,
+                                ) as convert_live:
+                                    result = self._convert_to_markdown(input_file, output_file)
+                                    convert_live.stop()
+
+                                # Show success or error based on result
+                                if result.startswith("Error:"):
+                                    console.print(f"[red]✗ {result}[/red]\n")
+                                else:
+                                    console.print(f"[green]✓ {result}[/green]\n")
+
+                                # Check for interrupt after conversion
+                                if self.interrupted:
+                                    if old_handler:
+                                        signal.signal(signal.SIGINT, old_handler)
+                                    return False
+
+                                # Add tool result to history
+                                self.conversation_history.append(
+                                    {"role": "tool", "content": result}
+                                )
 
                         except Exception as e:
                             console.print(f"[red]Error executing tool: {e}[/red]")
                             import traceback
+
                             traceback.print_exc()
 
                     # Check for interrupt after all tools
@@ -791,13 +985,13 @@ class ChatSession:
                     with Live(
                         Spinner("dots", text="[cyan]baking...[/cyan]"),
                         console=console,
-                        transient=True  # Clean up after completion
+                        transient=True,  # Clean up after completion
                     ) as final_live:
                         final_stream = ollama.chat(
                             model=self.model_name,
                             messages=self.conversation_history,
                             tools=TOOLS,  # Include tools so model knows context
-                            stream=True
+                            stream=True,
                         )
 
                         # Wait for first chunk before stopping spinner
@@ -834,10 +1028,9 @@ class ChatSession:
 
                         # Add final response if not interrupted
                         if final_text and not self.interrupted:
-                            self.conversation_history.append({
-                                "role": "assistant",
-                                "content": final_text
-                            })
+                            self.conversation_history.append(
+                                {"role": "assistant", "content": final_text}
+                            )
 
                 # Restore original handler at the very end
                 if old_handler:

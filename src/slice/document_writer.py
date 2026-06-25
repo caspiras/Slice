@@ -66,15 +66,15 @@ def write_document(file_path: str, operations: Union[Dict, List[Dict]]) -> Dict[
     suffix = path.suffix.lower()
 
     try:
-        if suffix == '.pdf':
+        if suffix == ".pdf":
             result = _write_pdf(path, operations, file_exists)
-        elif suffix == '.docx':
+        elif suffix == ".docx":
             result = _write_docx(path, operations, file_exists)
-        elif suffix == '.xlsx':
+        elif suffix == ".xlsx":
             result = _write_excel(path, operations, file_exists)
-        elif suffix == '.pptx':
+        elif suffix == ".pptx":
             result = _write_pptx(path, operations, file_exists)
-        elif suffix == '.csv':
+        elif suffix == ".csv":
             result = _write_csv(path, operations, file_exists)
         else:
             # Treat as plain text
@@ -87,7 +87,7 @@ def write_document(file_path: str, operations: Union[Dict, List[Dict]]) -> Dict[
             "success": False,
             "message": "",
             "error": f"Failed to write {file_path}: {str(e)}",
-            "operations_applied": 0
+            "operations_applied": 0,
         }
 
 
@@ -148,7 +148,9 @@ def _write_docx(path: Path, operations: List[Dict], file_exists: bool) -> Dict[s
                     doc.add_paragraph(text)
                     found = True
                     operations_applied += 1
-                    messages.append(f"Inserted text after '{search}' (note: added at end due to python-docx limitations)")
+                    messages.append(
+                        f"Inserted text after '{search}' (note: added at end due to python-docx limitations)"
+                    )
                     break
             if not found:
                 messages.append(f"Warning: Could not find '{search}' to insert after")
@@ -163,7 +165,7 @@ def _write_docx(path: Path, operations: List[Dict], file_exists: bool) -> Dict[s
         "success": True,
         "message": "; ".join(messages),
         "error": "",
-        "operations_applied": operations_applied
+        "operations_applied": operations_applied,
     }
 
 
@@ -239,7 +241,9 @@ def _write_excel(path: Path, operations: List[Dict], file_exists: bool) -> Dict[
                 sheet.cell(row=start_row + i, column=col_idx, value=value)
 
             operations_applied += 1
-            messages.append(f"Set column {get_column_letter(col_idx)} starting at row {start_row} with {len(values)} values")
+            messages.append(
+                f"Set column {get_column_letter(col_idx)} starting at row {start_row} with {len(values)} values"
+            )
 
         else:
             messages.append(f"Unknown operation type: {op_type}")
@@ -251,7 +255,7 @@ def _write_excel(path: Path, operations: List[Dict], file_exists: bool) -> Dict[
         "success": True,
         "message": "; ".join(messages),
         "error": "",
-        "operations_applied": operations_applied
+        "operations_applied": operations_applied,
     }
 
 
@@ -308,7 +312,7 @@ def _write_pptx(path: Path, operations: List[Dict], file_exists: bool) -> Dict[s
         "success": True,
         "message": "; ".join(messages),
         "error": "",
-        "operations_applied": operations_applied
+        "operations_applied": operations_applied,
     }
 
 
@@ -331,7 +335,9 @@ def _write_pdf(path: Path, operations: List[Dict], file_exists: bool) -> Dict[st
     messages = []
 
     # For creating new PDFs or adding content
-    if not file_exists or any(op.get("type") in ["add_page", "add_paragraph", "add_text"] for op in operations):
+    if not file_exists or any(
+        op.get("type") in ["add_page", "add_paragraph", "add_text"] for op in operations
+    ):
         # Create a new PDF with content
         doc = SimpleDocTemplate(str(path), pagesize=letter)
         styles = getSampleStyleSheet()
@@ -351,17 +357,14 @@ def _write_pdf(path: Path, operations: List[Dict], file_exists: bool) -> Dict[st
                 # Add title
                 if title:
                     title_style = ParagraphStyle(
-                        'CustomTitle',
-                        parent=styles['Heading1'],
-                        fontSize=24,
-                        spaceAfter=30
+                        "CustomTitle", parent=styles["Heading1"], fontSize=24, spaceAfter=30
                     )
                     story.append(Paragraph(title, title_style))
 
                 # Add content
                 if content:
-                    story.append(Paragraph(content, styles['BodyText']))
-                    story.append(Spacer(1, 0.2*inch))
+                    story.append(Paragraph(content, styles["BodyText"]))
+                    story.append(Spacer(1, 0.2 * inch))
 
                 operations_applied += 1
                 messages.append(f"Added page: '{title}'")
@@ -371,10 +374,7 @@ def _write_pdf(path: Path, operations: List[Dict], file_exists: bool) -> Dict[st
                 font_size = op.get("font_size", 12)
 
                 para_style = ParagraphStyle(
-                    'CustomPara',
-                    parent=styles['BodyText'],
-                    fontSize=font_size,
-                    spaceAfter=12
+                    "CustomPara", parent=styles["BodyText"], fontSize=font_size, spaceAfter=12
                 )
                 story.append(Paragraph(text, para_style))
                 operations_applied += 1
@@ -386,15 +386,14 @@ def _write_pdf(path: Path, operations: List[Dict], file_exists: bool) -> Dict[st
 
                 # For simple text, treat as paragraph
                 para_style = ParagraphStyle(
-                    'CustomText',
-                    parent=styles['Normal'],
-                    fontSize=font_size,
-                    alignment=TA_LEFT
+                    "CustomText", parent=styles["Normal"], fontSize=font_size, alignment=TA_LEFT
                 )
                 story.append(Paragraph(text, para_style))
-                story.append(Spacer(1, 0.1*inch))
+                story.append(Spacer(1, 0.1 * inch))
                 operations_applied += 1
-                messages.append(f"Added text: '{text[:50]}...' " if len(text) > 50 else f"Added text: '{text}'")
+                messages.append(
+                    f"Added text: '{text[:50]}...' " if len(text) > 50 else f"Added text: '{text}'"
+                )
 
             else:
                 messages.append(f"Unknown operation type: {op_type}")
@@ -426,14 +425,14 @@ def _write_pdf(path: Path, operations: List[Dict], file_exists: bool) -> Dict[st
                     messages.append(f"Warning: Source PDF not found: '{source_path}'")
 
         # Write the merged PDF
-        with open(path, 'wb') as output_file:
+        with open(path, "wb") as output_file:
             writer.write(output_file)
 
     return {
         "success": True,
         "message": "; ".join(messages),
         "error": "",
-        "operations_applied": operations_applied
+        "operations_applied": operations_applied,
     }
 
 
@@ -446,9 +445,9 @@ def _write_csv(path: Path, operations: List[Dict], file_exists: bool) -> Dict[st
     if file_exists:
         # Try UTF-8 first, then latin-1 for encoding compatibility
         last_error = None
-        for encoding in ['utf-8', 'latin-1']:
+        for encoding in ["utf-8", "latin-1"]:
             try:
-                with open(path, 'r', newline='', encoding=encoding) as f:
+                with open(path, "r", newline="", encoding=encoding) as f:
                     reader = csv.reader(f)
                     rows = list(reader)
                 break  # Success, exit encoding loop
@@ -496,7 +495,7 @@ def _write_csv(path: Path, operations: List[Dict], file_exists: bool) -> Dict[st
             messages.append(f"Unknown operation type: {op_type}")
 
     # Write back to file
-    with open(path, 'w', newline='', encoding='utf-8') as f:
+    with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerows(rows)
 
@@ -504,7 +503,7 @@ def _write_csv(path: Path, operations: List[Dict], file_exists: bool) -> Dict[st
         "success": True,
         "message": "; ".join(messages),
         "error": "",
-        "operations_applied": operations_applied
+        "operations_applied": operations_applied,
     }
 
 
@@ -515,16 +514,16 @@ def _write_text(path: Path, operations: List[Dict], file_exists: bool) -> Dict[s
     if file_exists:
         # Try UTF-8 first, then latin-1, then binary with error replacement
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            with open(path, "r", encoding="utf-8") as f:
                 content = f.read()
         except UnicodeDecodeError:
             try:
-                with open(path, 'r', encoding='latin-1') as f:
+                with open(path, "r", encoding="latin-1") as f:
                     content = f.read()
             except Exception:
                 # Last resort: binary read with error replacement
-                with open(path, 'rb') as f:
-                    content = f.read().decode('utf-8', errors='replace')
+                with open(path, "rb") as f:
+                    content = f.read().decode("utf-8", errors="replace")
 
     operations_applied = 0
     messages = []
@@ -556,12 +555,12 @@ def _write_text(path: Path, operations: List[Dict], file_exists: bool) -> Dict[s
             messages.append(f"Unknown operation type: {op_type}")
 
     # Write back to file
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(content)
 
     return {
         "success": True,
         "message": "; ".join(messages),
         "error": "",
-        "operations_applied": operations_applied
+        "operations_applied": operations_applied,
     }

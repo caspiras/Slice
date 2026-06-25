@@ -37,14 +37,16 @@ def main():
 █████▀ ██▄▄▄ ██ ▀████ ██▄▄▄
                                 [/bold cyan]""")
     console.print("[cyan]" + "─" * 64 + "[/cyan]")
-    console.print("[cyan]v1.3.1 - Large File Support + Table Extraction[/cyan]")
+    console.print("[cyan]v1.3.2[/cyan]")
     console.print()
     console.print("[cyan]💡 Tips:[/cyan]")
     console.print("[cyan]  • Type /model to switch models during your session[/cyan]")
     console.print("[cyan]  • Press Ctrl+C once to interrupt generation, twice to exit[/cyan]")
     console.print("[cyan]  • Press Ctrl+Z to completely stop the process and exit[/cyan]")
     console.print()
-    console.print("[dim]Different models have different strengths. Choose based on your task:[/dim]")
+    console.print(
+        "[dim]Different models have different strengths. Choose based on your task:[/dim]"
+    )
     console.print("[dim]  • Code tasks: Models trained for tool use work best[/dim]")
     console.print("[dim]  • Mixed chat/actions: Try gemma4, mistral, or qwen2[/dim]")
     console.print()
