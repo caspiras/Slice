@@ -10,16 +10,28 @@
 
 Slice is a beautiful terminal IDE that wraps local Ollama models with practical coding tools. Built with **Python** and the **Rich** library, it provides streaming chat, code editing with diffs, document operations, and git integration - all sandboxed to your project directory.
 
-## 🆕 What's New in v1.4.0
+## 🆕 What's New in v1.5.0
 
-- **🎯 Skills Support** - Create custom slash commands with predefined instructions
-  - Define skills in `slice-skills/` directory
-  - Invoke with `/skill-name` for common tasks
+- **🎯 Skills System** - Create custom slash commands with predefined instructions
+  - Define skills in `slice-skills/` directory  
+  - Invoke with `/skill-name` for common workflows
   - Example skills included: `/test`, `/hello`, `/status`
   - Full documentation in `slice-skills/README.md`
-- **📚 Skill Documentation** - Comprehensive guides for creating and using skills
+- **🔄 Enhanced File Conversions** - Professional conversion tools for large files
+  - New `convert_to_json` and `convert_to_markdown` tools
+  - Proper table extraction in Word documents
+  - Large file support with chunking (CSV: 10k row batches)
+  - Replaces error-prone bash one-liners with tested conversion scripts
+  - No more timeouts or memory errors on large files
 
 ### Previous Updates
+
+**v1.4.0**
+- Enhanced model behavior and tool calling
+- Fixed critical system message issues
+- Better tool descriptions to prevent misuse
+- Improved bash tool examples
+- Models now correctly use bash for Python apps
 
 **v1.3.0**
 - Universal File to JSON Conversion (Excel, CSV, Word, PDF)
@@ -111,7 +123,7 @@ slice
 
 ## Skills - Custom Slash Commands
 
-Slice v1.4.0 introduces **skills** - custom slash commands that provide the AI with predefined instructions for common tasks.
+Slice v1.5.0 introduces **skills** - custom slash commands that provide the AI with predefined instructions for common tasks.
 
 ### What are Skills?
 
@@ -367,7 +379,7 @@ ruff check src/
 
 ## Features
 
-- 🎯 **Skills System** (NEW in v1.4.0)
+- 🎯 **Skills System** (NEW in v1.5.0)
   - Create custom slash commands with predefined instructions
   - Store skills in `slice-skills/` directory as markdown files
   - Invoke with `/skill-name` for common workflows

@@ -5,7 +5,7 @@ from typing import Dict, Any
 import warnings
 
 # Suppress openpyxl warnings about unsupported Excel extensions
-warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 
 def read_document(file_path: str) -> Dict[str, Any]:
@@ -33,7 +33,7 @@ def read_document(file_path: str) -> Dict[str, Any]:
             "success": False,
             "content": "",
             "error": f"File not found: {file_path}",
-            "file_type": "unknown"
+            "file_type": "unknown",
         }
 
     # Check if it's a file (not a directory)
@@ -42,29 +42,29 @@ def read_document(file_path: str) -> Dict[str, Any]:
             "success": False,
             "content": "",
             "error": f"Not a file: {file_path}",
-            "file_type": "unknown"
+            "file_type": "unknown",
         }
 
     # Determine file type and read accordingly
     suffix = path.suffix.lower()
 
     try:
-        if suffix == '.pdf':
+        if suffix == ".pdf":
             content = _read_pdf(path)
             file_type = "PDF"
-        elif suffix == '.docx':
+        elif suffix == ".docx":
             content = _read_docx(path)
             file_type = "Word Document"
-        elif suffix == '.xlsx':
+        elif suffix == ".xlsx":
             content = _read_excel(path)
             file_type = "Excel Spreadsheet"
-        elif suffix == '.xls':
+        elif suffix == ".xls":
             # Old Excel format - not supported by openpyxl
             raise ValueError(
                 "Legacy .xls format is not supported. "
                 "Please convert to .xlsx or use a different tool."
             )
-        elif suffix == '.csv':
+        elif suffix == ".csv":
             content = _read_csv(path)
             file_type = "CSV File"
         else:
@@ -72,18 +72,13 @@ def read_document(file_path: str) -> Dict[str, Any]:
             content = _read_text(path)
             file_type = "Text Document"
 
-        return {
-            "success": True,
-            "content": content,
-            "error": "",
-            "file_type": file_type
-        }
+        return {"success": True, "content": content, "error": "", "file_type": file_type}
     except Exception as e:
         return {
             "success": False,
             "content": "",
             "error": f"Failed to read {file_path}: {str(e)}",
-            "file_type": suffix[1:] if suffix else "unknown"
+            "file_type": suffix[1:] if suffix else "unknown",
         }
 
 
@@ -93,8 +88,7 @@ def _read_pdf(path: Path) -> str:
         from pypdf import PdfReader
     except ImportError:
         raise ImportError(
-            "pypdf is required to read PDF files. "
-            "Please reinstall slice-agent: pip install -e ."
+            "pypdf is required to read PDF files. " "Please reinstall slice-agent: pip install -e ."
         )
 
     reader = PdfReader(path)
@@ -112,7 +106,7 @@ def _read_pdf(path: Path) -> str:
 
 
 def _read_docx(path: Path) -> str:
-    """Read text content from a Word document."""
+    """Read text content from a Word document, including tables."""
     try:
         from docx import Document
     except ImportError:
@@ -122,12 +116,49 @@ def _read_docx(path: Path) -> str:
         )
 
     doc = Document(path)
-    paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+    content = []
 
-    if not paragraphs:
+    # Extract both paragraphs and tables in document order
+    for element in doc.element.body:
+        # Check if it's a paragraph
+        if element.tag.endswith("p"):
+            # Find the corresponding paragraph object
+            for para in doc.paragraphs:
+                if para._element == element:
+                    text = para.text.strip()
+                    if text:
+                        content.append(text)
+                    break
+
+        # Check if it's a table
+        elif element.tag.endswith("tbl"):
+            # Find the corresponding table object
+            for table in doc.tables:
+                if table._element == element:
+                    table_text = _format_docx_table(table)
+                    if table_text:
+                        content.append(table_text)
+                    break
+
+    if not content:
         return "(No text content could be extracted from this Word document)"
 
-    return "\n\n".join(paragraphs)
+    return "\n\n".join(content)
+
+
+def _format_docx_table(table) -> str:
+    """Format a Word table as readable text."""
+    rows_text = []
+    rows_text.append("--- Table ---")
+
+    for row_idx, row in enumerate(table.rows):
+        cells = [cell.text.strip() for cell in row.cells]
+        # Only include rows with at least one non-empty cell
+        if any(cells):
+            row_text = " | ".join(cells)
+            rows_text.append(f"Row {row_idx + 1}: {row_text}")
+
+    return "\n".join(rows_text) if len(rows_text) > 1 else ""
 
 
 def _read_excel(path: Path) -> str:
@@ -181,9 +212,9 @@ def _read_csv(path: Path) -> str:
     last_error = None
 
     # Try UTF-8 first, then latin-1
-    for encoding in ['utf-8', 'latin-1']:
+    for encoding in ["utf-8", "latin-1"]:
         try:
-            with open(path, 'r', encoding=encoding, newline='') as f:
+            with open(path, "r", encoding=encoding, newline="") as f:
                 reader = csv.reader(f)
                 for row_num, row in enumerate(reader, start=1):
                     if any(cell.strip() for cell in row):  # Skip empty rows
@@ -193,7 +224,7 @@ def _read_csv(path: Path) -> str:
         except UnicodeDecodeError as e:
             last_error = e
             continue  # Try next encoding
-        except Exception as e:
+        except Exception:
             # Other errors (permissions, CSV format issues, etc.)
             raise
 
@@ -209,14 +240,14 @@ def _read_text(path: Path) -> str:
     """Read a plain text file with automatic encoding detection."""
     # Try UTF-8 first (most common)
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             return f.read()
     except UnicodeDecodeError:
         # Fall back to latin-1 which accepts all byte values
         try:
-            with open(path, 'r', encoding='latin-1') as f:
+            with open(path, "r", encoding="latin-1") as f:
                 return f.read()
         except Exception:
             # Last resort: read as binary and decode with errors='replace'
-            with open(path, 'rb') as f:
-                return f.read().decode('utf-8', errors='replace')
+            with open(path, "rb") as f:
+                return f.read().decode("utf-8", errors="replace")
