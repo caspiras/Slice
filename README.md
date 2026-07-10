@@ -17,28 +17,40 @@ Slice is a beautiful terminal IDE that wraps local Ollama models with practical 
   - Invoke with `/skill-name` for common workflows
   - Example skills included: `/test`, `/hello`, `/status`
   - Full documentation in `slice-skills/README.md`
-- **🔄 Enhanced File Conversions** - Professional conversion tools for large files
-  - New `convert_to_json` and `convert_to_markdown` tools
-  - Proper table extraction in Word documents
-  - Large file support with chunking (CSV: 10k row batches)
-  - Replaces error-prone bash one-liners with tested conversion scripts
-  - No more timeouts or memory errors on large files
 
 ### Previous Updates
 
-**v1.4.0**
-- Enhanced model behavior and tool calling
-- Fixed critical system message issues
-- Better tool descriptions to prevent misuse
-- Improved bash tool examples
-- Models now correctly use bash for Python apps
+### v1.4.0
 
-**v1.3.0**
-- Universal File to JSON Conversion (Excel, CSV, Word, PDF)
-- Fixed UI issues and improved error messages
-- Optimized conversion workflow
+- **🎯 Enhanced Model Behavior** - Major improvements to tool calling across models
+  - Fixed critical system message issues preventing models from using tools correctly
+  - Models now properly create Python apps with bash (not write_document)
+  - Better tool calling behavior for gemma4, granite4, and other models
+  - Added explicit guidance for creating executable files
+  - Improved sequential tool execution (create file → run file)
+  - Note: llama3.1 8B has poor tool calling support; use gemma4 or granite4 instead
 
-**v1.2.0**
+### v1.3.2
+
+- **📝 Convert to Markdown** - New `convert_to_markdown` tool for document conversion
+  - Convert Excel, CSV, Word (with tables), and PDF files to Markdown format
+  - Tables automatically formatted with Markdown table syntax (| separators)
+  - Example: `convert budget.xlsx to budget.md`
+
+### v1.3.1
+
+- **📊 Word Document Table Extraction** - Tables in Word documents are now extracted alongside paragraphs
+- **🚀 Large File Support** - New `convert_to_json` tool handles massive files efficiently
+- **🔧 Dedicated Conversion Tool** - Replaces error-prone bash one-liners with proper error handling
+
+### v1.3.0
+
+- **🔄 Universal File to JSON Conversion** - Convert Excel, CSV, Word, and PDF files to JSON seamlessly
+- **🐛 Fixed UI Issues** - Removed `<tool_call>` tags appearing in model output
+- **💬 Better Tool Response** - Fixed models not responding after reading documents
+- **🧹 Cleaner UI** - All spinners properly clean up after completion
+
+### v1.2.0
 
 - **📝 PDF Writing Enabled** - Create and edit PDFs directly
 - **📊 Enhanced Spreadsheet Support** - Improved tool guidance for better Excel/CSV editing
