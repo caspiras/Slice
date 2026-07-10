@@ -122,10 +122,11 @@ TOOLS = [
 class ChatSession:
     """Chat session with an Ollama model - clean IDE experience with tool execution."""
 
-    def __init__(self, model_name: str, safe_directory: str):
+    def __init__(self, model_name: str, safe_directory: str, skill_loader=None):
         self.model_name = model_name
         self.safe_directory = safe_directory
         self.interrupted = False
+        self.skill_loader = skill_loader
 
         # Always try tools - let Ollama decide if model supports them
         self.supports_tools = True
@@ -338,11 +339,39 @@ class ChatSession:
         Supports tool calling for models that can use it.
         Returns True if completed, False if interrupted.
         """
-        # Add user message to history
-        self.conversation_history.append({
-            "role": "user",
-            "content": user_input
-        })
+        # Check if this is a skill command
+        if user_input.strip().startswith('/') and self.skill_loader:
+            # Extract just the skill name (first word after /)
+            skill_name = user_input.strip()[1:].split()[0] if user_input.strip()[1:] else ""
+            skill = self.skill_loader.get_skill(skill_name)
+
+            if skill:
+                console.print(f"[cyan]🔧 Running skill: {skill.name}[/cyan]")
+                console.print(f"[dim]{skill.description}[/dim]\n")
+
+                # Inject skill instructions as a system message
+                self.conversation_history.append({
+                    "role": "system",
+                    "content": f"The user has invoked the '{skill.name}' skill. Follow these instructions:\n\n{skill.instructions}"
+                })
+
+                # Also add a user message to trigger the model
+                self.conversation_history.append({
+                    "role": "user",
+                    "content": f"Execute the {skill.name} skill."
+                })
+            else:
+                # Not a valid skill command, treat as normal user input
+                self.conversation_history.append({
+                    "role": "user",
+                    "content": user_input
+                })
+        else:
+            # Normal user input (not a skill command)
+            self.conversation_history.append({
+                "role": "user",
+                "content": user_input
+            })
 
         # Stream response from Ollama
         response_text = ""

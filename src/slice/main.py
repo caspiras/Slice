@@ -6,6 +6,7 @@ import signal
 from rich.console import Console
 from .ui import ModelSelector, ChatUI
 from .chat import ChatSession
+from .skills import SkillLoader
 
 console = Console()
 exit_count = 0
@@ -37,7 +38,7 @@ def main():
 █████▀ ██▄▄▄ ██ ▀████ ██▄▄▄
                                 [/bold cyan]""")
     console.print("[cyan]" + "─" * 64 + "[/cyan]")
-    console.print("[cyan]v1.3 - Enhanced Excel/JSON Conversion[/cyan]")
+    console.print("[cyan]v1.4.0 - Skills Support[/cyan]")
     console.print()
     console.print("[cyan]💡 Tips:[/cyan]")
     console.print("[cyan]  • Type /model to switch models during your session[/cyan]")
@@ -59,7 +60,17 @@ def main():
 
     # Initialize chat session with selected model
     safe_dir = os.getcwd()
-    session = ChatSession(selected_model, safe_directory=safe_dir)
+
+    # Load skills from slice-skills/ directory
+    skill_loader = SkillLoader(safe_dir)
+    loaded_skills = skill_loader.load_skills()
+
+    # Display loaded skills if any
+    if skill_loader.has_skills():
+        console.print(f"[cyan]✓ Loaded {len(loaded_skills)} skill(s): {', '.join(f'/{name}' for name in skill_loader.list_skill_names())}[/cyan]")
+        console.print()
+
+    session = ChatSession(selected_model, safe_directory=safe_dir, skill_loader=skill_loader)
 
     # Start chat UI
     chat_ui = ChatUI(session, safe_directory=safe_dir)

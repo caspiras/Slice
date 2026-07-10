@@ -10,20 +10,23 @@
 
 Slice is a beautiful terminal IDE that wraps local Ollama models with practical coding tools. Built with **Python** and the **Rich** library, it provides streaming chat, code editing with diffs, document operations, and git integration - all sandboxed to your project directory.
 
-## 🆕 What's New in v1.3.0
+## 🆕 What's New in v1.4.0
 
-- **🔄 Universal File to JSON Conversion** - Convert Excel, CSV, Word, and PDF files to JSON seamlessly
-  - Excel/CSV use pandas for tabular data conversion
-  - Word documents extract paragraphs using python-docx
-  - PDF files extract pages using pypdf
-  - All conversions happen directly via bash - no manual reading required
-- **🐛 Fixed UI Issues** - Removed `<tool_call>` tags appearing in model output
-- **💬 Better Tool Response** - Fixed models not responding after reading documents
-- **⚠️ Improved Error Messages** - Clear feedback when write operations fail
-- **🎯 Optimized Conversion Workflow** - Models skip unnecessary reads during format conversion
-- **🧹 Cleaner UI** - All spinners properly clean up after completion
+- **🎯 Skills Support** - Create custom slash commands with predefined instructions
+  - Define skills in `slice-skills/` directory
+  - Invoke with `/skill-name` for common tasks
+  - Example skills included: `/test`, `/hello`, `/status`
+  - Full documentation in `slice-skills/README.md`
+- **📚 Skill Documentation** - Comprehensive guides for creating and using skills
 
-### Previous Updates (v1.2.0)
+### Previous Updates
+
+**v1.3.0**
+- Universal File to JSON Conversion (Excel, CSV, Word, PDF)
+- Fixed UI issues and improved error messages
+- Optimized conversion workflow
+
+**v1.2.0**
 
 - **📝 PDF Writing Enabled** - Create and edit PDFs directly
 - **📊 Enhanced Spreadsheet Support** - Improved tool guidance for better Excel/CSV editing
@@ -105,6 +108,47 @@ slice
 3. **Ask it to do things** - it will request permission before executing
 4. **Switch models anytime** by typing `/model`
 5. **Exit gracefully** with Ctrl+C (twice)
+
+## Skills - Custom Slash Commands
+
+Slice v1.4.0 introduces **skills** - custom slash commands that provide the AI with predefined instructions for common tasks.
+
+### What are Skills?
+
+Skills are instruction sets stored in markdown files that you can invoke with `/skill-name`. When invoked, Slice feeds the instructions to the AI model, guiding it through specific workflows.
+
+### Using Skills
+
+**Built-in example skills:**
+```
+🍕 /hello      # Greeting with system information
+🍕 /test       # Test the skills system
+🍕 /status     # Git repository status
+```
+
+**Create your own skills:**
+
+1. Create a `slice-skills/` directory in your project
+2. Add a `.md` file with this format:
+
+```markdown
+---
+name: deploy
+description: Deploy the application
+---
+
+# Deployment Instructions
+
+When invoked:
+1. Run tests with `pytest`
+2. Build with `npm run build`
+3. Deploy with `./deploy.sh`
+4. Verify deployment
+```
+
+3. Invoke with `/deploy` in Slice
+
+**See `slice-skills/README.md` for complete documentation.**
 
 ## Usage Examples
 
@@ -271,6 +315,7 @@ Slice is built entirely in **Python** using the Rich library for beautiful termi
 **Core capabilities:**
 - **Rich terminal UI** - Beautiful panels, spinners, syntax highlighting
 - **Ollama integration** - Streaming chat with tool calling support
+- **Skills system** - Custom slash commands with predefined instructions
 - **Code editing** - Read files, generate diffs, apply changes with approval
 - **Document operations** - Read/write PDF, Word, Excel, PowerPoint, CSV
 - **Command execution** - Sandboxed bash with 30-second timeout
@@ -285,9 +330,13 @@ slice_agent/
 │   ├── main.py              # CLI entry point & startup
 │   ├── ui.py                # Rich terminal UI components
 │   ├── chat.py              # Chat session & tool execution
+│   ├── skills.py            # Skills loader & parser
 │   ├── executor.py          # Command executor & sandboxing
 │   ├── document_reader.py   # PDF/Word/Excel/CSV reading
 │   └── document_writer.py   # Document writing operations
+├── slice-skills/            # Custom slash commands (optional)
+│   ├── README.md            # Skills documentation
+│   └── *.md                 # Skill definition files
 └── pyproject.toml           # Python dependencies & metadata
 ```
 
@@ -317,6 +366,13 @@ ruff check src/
 - **python-docx, openpyxl, python-pptx** - Word, Excel, PowerPoint operations
 
 ## Features
+
+- 🎯 **Skills System** (NEW in v1.4.0)
+  - Create custom slash commands with predefined instructions
+  - Store skills in `slice-skills/` directory as markdown files
+  - Invoke with `/skill-name` for common workflows
+  - Example skills included: `/hello`, `/test`, `/status`
+  - Full documentation in `slice-skills/README.md`
 
 - ✏️ **Code Editing with Diffs**
   - Read source files and propose changes

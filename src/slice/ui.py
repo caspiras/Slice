@@ -156,6 +156,12 @@ class ChatUI:
         """Run the interactive chat loop."""
         self.console.print("[dim]Type your message (Ctrl+C once for warning, twice to exit)[/dim]")
         self.console.print("[dim]Type /model to switch models[/dim]")
+
+        # Show available skills if any
+        if self.session.skill_loader and self.session.skill_loader.has_skills():
+            skill_names = ', '.join(f'/{name}' for name in self.session.skill_loader.list_skill_names())
+            self.console.print(f"[dim]Available skills: {skill_names}[/dim]")
+
         self.console.print("[dim]Use ↑/↓ arrows for command history\n[/dim]")
 
         while True:
