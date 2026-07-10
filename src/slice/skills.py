@@ -42,6 +42,10 @@ class SkillLoader:
         # Find all .md files in the skills directory
         skill_files = list(skills_path.glob("*.md"))
 
+        # Filter out README and other documentation files
+        excluded_files = {'README.md', 'CHANGELOG.md', 'LICENSE.md'}
+        skill_files = [f for f in skill_files if f.name not in excluded_files]
+
         for skill_file in skill_files:
             try:
                 skill = self._parse_skill_file(skill_file)
